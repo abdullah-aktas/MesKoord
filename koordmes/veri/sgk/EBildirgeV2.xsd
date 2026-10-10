@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Surum : 3.1 -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+	<xs:element name="AYLIKBILDIRGELER">
+		<xs:annotation>
+			<xs:documentation>Sgk</xs:documentation>
+		</xs:annotation>
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="ISYERI">
+					<xs:complexType>
+						<xs:attribute name="ISYERISICIL" use="required">
+							<xs:simpleType>
+								<xs:restriction base="xs:string">
+									<xs:minLength value="21"/>
+									<xs:maxLength value="21"/>
+								</xs:restriction>
+							</xs:simpleType>
+						</xs:attribute>
+						<xs:attribute name="KONTROLNO" use="required">
+							<xs:simpleType>
+								<xs:restriction base="xs:integer">
+									<xs:minInclusive value="01"/>
+									<xs:maxInclusive value="97"/>
+								</xs:restriction>
+							</xs:simpleType>
+						</xs:attribute>
+						<xs:attribute name="ISYERIARACINO" use="required">
+							<xs:simpleType>
+								<xs:restriction base="xs:integer">
+									<xs:minInclusive value="0"/>
+									<xs:maxInclusive value="999"/>
+								</xs:restriction>
+							</xs:simpleType>
+						</xs:attribute>
+						<xs:attribute name="ISYERIUNVAN" use="required">
+							<xs:simpleType>
+								<xs:restriction base="xs:string">
+									<xs:minLength value="1"/>
+									<xs:maxLength value="50"/>
+									<xs:whiteSpace value="preserve"/>
+								</xs:restriction>
+							</xs:simpleType>
+						</xs:attribute>
+						<xs:attribute name="ISYERIADRES" use="required">
+							<xs:simpleType>
+								<xs:restriction base="xs:string">
+									<xs:minLength value="1"/>
+									<xs:maxLength value="50"/>
+									<xs:whiteSpace value="preserve"/>
+								</xs:restriction>
+							</xs:simpleType>
+						</xs:attribute>
+						<xs:attribute name="ISYERIVERGINO" type="xs:double" use="optional"/>
+					</xs:complexType>
+				</xs:element>
+				<xs:element name="BORDRO">
+					<xs:complexType>
+						<xs:attribute name="TAHAKKUKNEDEN" use="optional" default="A"><!--süresi içinde verilen belge, geçmiş içinde alacağımızfan ekledik.-->
+							<xs:simpleType>
+								<xs:restriction base="xs:string">
+									<xs:length value="1"/>
+								</xs:restriction>
+							</xs:simpleType>
+						</xs:attribute>
+						<xs:attribute name="BELGEMAHIYET" use="optional" default="A">
+							<xs:simpleType>
+								<xs:restriction base="xs:string">
+									<xs:length value="1"/>
+								</xs:restriction>
+							</xs:simpleType>
+						</xs:attribute>
+						<xs:attribute name="DONEMAY" use="required">
+							<xs:simpleType>
+								<xs:restriction base="xs:integer">
+									<xs:minInclusive value="1"/>
+									<xs:maxInclusive value="12"/>
+								</xs:restriction>
+							</xs:simpleType>
+						</xs:attribute>
+						<xs:attribute name="DONEMYIL" use="required">
+							<xs:simpleType>
+								<xs:restriction base="xs:integer">
+									<xs:minInclusive value="2008"/>
+									<xs:maxInclusive value="2050"/>
+									<xs:totalDigits value="4"/>
+								</xs:restriction>
+							</xs:simpleType>
+						</xs:attribute>
+						<xs:attribute name="HIZMETDONEMAY" use="optional"><!--hizmet yılda mahkeme kararı gibi durumlarda dolu olacka yoksa 0 ve tahakkuk nedenine göre validate edilecek.-->
+							<xs:simpleType>
+								<xs:restriction base="xs:integer">
+									<xs:minInclusive value="1"/>
+									<xs:maxInclusive value="12"/>
+								</xs:restriction>
+							</xs:simpleType>
+						</xs:attribute>
+						<xs:attribute name="HIZMETDONEMYIL" use="optional">
+							<xs:simpleType>
+								<xs:restriction base="xs:integer">
+									<xs:minInclusive value="2008"/>
+									<xs:maxInclusive value="2050"/>
+									<xs:totalDigits value="4"/>
+								</xs:restriction>
+							</xs:simpleType>
+						</xs:attribute>
+					</xs:complexType>
+				</xs:element>
+				<xs:element name="BILDIRGELER" maxOccurs="unbounded">
+					<xs:complexType>
+						<xs:sequence>
+							<xs:element name="SIGORTALILAR">
+								<xs:complexType>
+									<xs:sequence>
+										<xs:element name="SIGORTALI" maxOccurs="unbounded">
+											<xs:complexType>
+												<xs:attribute name="SIRA" use="required">
+													<xs:simpleType>
+														<xs:restriction base="xs:integer">
+															<xs:minInclusive value="1"/>
+															<xs:maxInclusive value="99999"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute>
+												<xs:attribute name="SIGORTALISICIL" use="optional">
+													<xs:simpleType>
+														<xs:restriction base="xs:integer">
+															<xs:maxInclusive value="9999999999999"/>
+															<xs:minInclusive value="1"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute>
+												<xs:attribute name="TCKNO" use="optional">
+													<xs:simpleType>
+														<xs:restriction base="xs:integer">
+															<xs:minInclusive value="10000000000"/>
+															<xs:maxInclusive value="99999999999"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute>
+												<xs:attribute name="AD" use="required">
+													<xs:simpleType>
+														<xs:restriction base="xs:string">
+															<xs:minLength value="1"/>
+															<xs:maxLength value="18"/>
+															<xs:whiteSpace value="preserve"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute>
+												<xs:attribute name="SOYAD" use="required">
+													<xs:simpleType>
+														<xs:restriction base="xs:string">
+															<xs:minLength value="1"/>
+															<xs:maxLength value="18"/>
+															<xs:whiteSpace value="preserve"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute>
+												<xs:attribute name="ILKSOYAD" use="optional">
+													<xs:simpleType>
+														<xs:restriction base="xs:string">
+															<xs:minLength value="1"/>
+															<xs:maxLength value="18"/>
+															<xs:whiteSpace value="preserve"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute><!-- bilgi: PEK :Toplam Prime Esas Kazanç = ucret + ikramiye olarak yazilmalidir. Sistem ucret bilgisini Toplam PEK- PRIM IKRAMIYE olarak hesaplar -->
+												<xs:attribute name="PEK" use="required">
+													<xs:simpleType>
+														<xs:restriction base="xs:double">
+															<xs:maxInclusive value="999999999999999999"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute>
+												<xs:attribute name="PRIM_IKRAMIYE" use="optional">
+													<xs:simpleType>
+														<xs:restriction base="xs:double">
+															<xs:maxInclusive value="999999999999999999"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute>
+												<xs:attribute name="GUN" use="required">
+													<xs:simpleType>
+														<xs:restriction base="xs:integer">
+															<xs:minInclusive value="0"/>
+															<xs:maxInclusive value="90"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute>
+												<xs:attribute name="GIRISGUN" use="optional">
+													<xs:simpleType>
+														<xs:restriction base="xs:integer">
+															<xs:minInclusive value="0"/>
+															<xs:maxInclusive value="3112"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute>
+												<xs:attribute name="CIKISGUN" use="optional">
+													<xs:simpleType>
+														<xs:restriction base="xs:integer">
+															<xs:minInclusive value="0"/>
+															<xs:maxInclusive value="3112"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute>
+												<xs:attribute name="UCRETLIIZINGUN" use="optional">
+													<xs:simpleType>
+														<xs:restriction base="xs:integer">
+															<xs:minInclusive value="0"/>
+															<xs:maxInclusive value="30"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute>
+												<xs:attribute name="UIPEK" use="optional">
+													<xs:simpleType>
+														<xs:restriction base="xs:double">
+															<xs:maxInclusive value="99999999999"/>
+															<xs:minInclusive value="0"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute>
+												<xs:attribute name="EKSIKGUNNEDENI" use="optional">
+													<xs:simpleType>
+														<xs:restriction base="xs:integer">
+															<xs:minInclusive value="0"/>
+															<xs:maxInclusive value="27"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute>
+												<xs:attribute name="EKSIKGUNSAYISI" use="optional">
+													<xs:simpleType>
+														<xs:restriction base="xs:integer">
+															<xs:minInclusive value="0"/>
+															<xs:maxInclusive value="31"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute>
+												<xs:attribute name="ISTENCIKISNEDENI" use="optional">
+													<xs:simpleType>
+														<xs:restriction base="xs:integer">
+															<xs:minInclusive value="0"/>
+															<xs:maxInclusive value="37"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute>
+												<xs:attribute name="MESLEKKOD" use="optional">
+													<xs:simpleType>
+														<xs:restriction base="xs:string">
+															<xs:minLength value="0"/>
+															<xs:maxLength value="9"/>
+															<xs:whiteSpace value="preserve"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute>
+												<xs:attribute name="RAPCALISTI" use="optional">
+													<xs:simpleType>
+														<xs:restriction base="xs:integer">
+															<xs:minInclusive value="0"/>
+															<xs:maxInclusive value="9"/>
+														</xs:restriction>
+													</xs:simpleType>
+												</xs:attribute>
+											</xs:complexType>
+										</xs:element>
+									</xs:sequence>
+								</xs:complexType>
+							</xs:element>
+						</xs:sequence>
+						<xs:attribute name="BELGETURU" use="required">
+							<xs:simpleType>
+								<xs:restriction base="xs:integer">
+									<xs:minInclusive value="01"/>
+									<xs:maxInclusive value="92"/>
+									<xs:totalDigits value="2"/>
+								</xs:restriction>
+							</xs:simpleType>
+						</xs:attribute>
+						<xs:attribute name="KANUN" use="required">
+							<xs:simpleType>
+								<xs:restriction base="xs:string">
+									<xs:minLength value="5"/>
+									<xs:maxLength value="5"/>
+								</xs:restriction>
+							</xs:simpleType>
+						</xs:attribute>
+					</xs:complexType>
+				</xs:element>
+			</xs:sequence>
+			<xs:attribute name="VER" use="optional" default="2">
+				<xs:simpleType>
+					<xs:restriction base="xs:integer">
+						<xs:minInclusive value="1"/>
+						<xs:maxInclusive value="2"/>
+						<xs:totalDigits value="1"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:attribute>
+		</xs:complexType>
+	</xs:element>
+</xs:schema>

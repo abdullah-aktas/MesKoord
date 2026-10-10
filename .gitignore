@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+build/
+dist/
+cikti/
+.tmp_data/
+dagitim/_derleme.iss
+# özel imza anahtarı ve kurumlara verilen lisanslar hiçbir zaman depoya girmez
+*.pem
+*.lic

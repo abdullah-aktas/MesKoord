@@ -1,0 +1,69 @@
+MesKoord SON KULLANICI LİSANS SÖZLEŞMESİ
+(Taslak - kullanıma almadan önce döner sermaye işletme müdürlüğü ve hukuk birimince gözden geçirilmelidir.
+Köşeli parantez içindeki yerler doldurulmalıdır.)
+
+1. TARAFLAR
+Lisans veren: [OKUL ADI] Döner Sermaye İşletmesi, [ADRES] ("Lisans Veren").
+Lisans alan: Lisans dosyasında adı ve MEB kurum kodu yazılı okul/kurum ("Kurum").
+
+2. KONU
+Bu sözleşme, MesKoord Mesleki Eğitim Yönetim Sistemi yazılımının ("Program") Kuruma kullanım hakkı
+verilmesine ilişkin şartları düzenler. Programın mülkiyeti ve üzerindeki fikrî haklar devredilmez;
+yalnızca aşağıdaki şartlarla, münhasır olmayan ve devredilemeyen bir kullanım hakkı verilir.
+
+3. LİSANSIN KAPSAMI
+3.1. Lisans kurum lisansıdır: Program, Kurumun bütün bilgisayarlarına kurulabilir ve Kurum personelince
+     Kurumun işleri için kullanılabilir.
+3.2. Lisans ve lisans dosyası başka bir kuruma veya kişiye devredilemez, satılamaz, kiralanamaz,
+     ödünç verilemez. Lisanslı kurumun adı ve kodu Programın ürettiği belgelere yazılır.
+3.3. Programın lisans denetimini atlatmak, değiştirmek, kaynak kodunu elde etmeye çalışmak veya Programı
+     değiştirerek dağıtmak yasaktır. Açık kaynak bileşenler üzerindeki, kendi lisanslarından doğan
+     haklar saklıdır (bkz. madde 9).
+
+4. SÜRE, DENEME VE YENİLEME
+4.1. Lisans süresi lisans dosyasında yazılıdır. Süresiz lisanslarda kullanım hakkı süresizdir.
+4.2. Program lisans yüklenmeden 30 gün deneme amacıyla kullanılabilir.
+4.3. Süreli lisans yenilenmezse Program süre bitiminden sonra 30 gün daha çalışır, sonra yalnızca lisans
+     yükleme ve veri yedekleme ekranı açılır. Kurumun verileri hiçbir durumda silinmez veya kilitlenmez.
+4.4. Lisans bedeli ve ödeme şartları Lisans Verenin onaylı fiyat tarifesine göre belirlenir ve
+     fatura/makbuz karşılığında tahsil edilir.
+
+5. VERİLER VE KİŞİSEL VERİLERİN KORUNMASI
+5.1. Program öğrenci, personel ve işletme bilgilerini yalnızca Kurumun bilgisayarında saklar. Program bu
+     verileri Lisans Verene veya üçüncü kişilere göndermez.
+5.2. 6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamında veri sorumlusu Kurumdur. Bilgisayarların
+     güvenliği, erişim yetkileri ve düzenli yedekleme Kurumun sorumluluğundadır.
+5.3. Lisans talebinde yalnızca kurum bilgileri (kurum adı, kodu, il/ilçe, yetkili iletişim bilgisi)
+     Lisans Verene iletilir.
+5.4. Program içindeki e-Okul, e-Mesem, SGK sayfalarına kullanıcı kendi şifresiyle girer; Program
+     şifreleri saklamaz.
+
+6. MEVZUAT HESAPLARI VE SORUMLULUK
+6.1. Program yardımcı bir araçtır. SGK, öğrenci ücreti, devlet katkısı, ek ders ve benzeri hesaplar
+     Ayarlar ekranındaki mevzuat parametrelerine ve Kurumun girdiği verilere dayanır.
+6.2. Resmî bildirim ve ödemelerden önce sonuçların güncel mevzuatla ve resmî sistemlerle
+     karşılaştırılması Kurumun sorumluluğundadır.
+6.3. Lisans Veren, yanlış veya eksik veri girişinden, parametrelerin güncellenmemesinden ya da
+     sonuçların kontrol edilmeden kullanılmasından doğan idari para cezası, gecikme zammı ve benzeri
+     zararlardan, kanunun izin verdiği ölçüde sorumlu değildir.
+
+7. GÜNCELLEME VE DESTEK
+7.1. Lisans süresince yayımlanan güncellemeler ücretsizdir. Mevzuat değişikliklerinin Programa makul
+     sürede yansıtılması hedeflenir.
+7.2. Destek iletişim bilgileri: [TELEFON] - [E-POSTA] - [ÇALIŞMA SAATLERİ].
+
+8. FİKRÎ HAKLAR
+Program üzerindeki fikrî ve sınaî haklar 5846 sayılı Fikir ve Sanat Eserleri Kanunu çerçevesinde
+[HAK SAHİBİ] adına saklıdır.
+
+9. AÇIK KAYNAK BİLEŞENLER
+Program; Qt for Python (PySide6, LGPLv3), Qt WebEngine/Chromium ve program klasöründeki
+UCUNCU_TARAF_LISANSLARI.txt dosyasında listelenen açık kaynak bileşenleri içerir. Bu bileşenler kendi
+lisans şartlarına tabidir ve bu sözleşme o şartları kısıtlamaz.
+
+10. UYUŞMAZLIKLAR
+Bu sözleşmeden doğan uyuşmazlıklarda [İL] mahkemeleri ve icra daireleri yetkilidir.
+
+11. YÜRÜRLÜK
+Kurulum sırasında "Sözleşmeyi kabul ediyorum" seçeneğinin işaretlenmesiyle bu sözleşme Kurum adına
+kabul edilmiş sayılır.

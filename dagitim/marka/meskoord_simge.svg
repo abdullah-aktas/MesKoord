@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>MesKoord</title>
+  <defs>
+    <linearGradient id="zemin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2B3F8C"/><stop offset="1" stop-color="#101943"/>
+    </linearGradient>
+    <linearGradient id="turkuaz" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5FE3CD"/><stop offset="1" stop-color="#1FB5A0"/>
+    </linearGradient>
+    <mask id="bosluk" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <circle cx="512" cy="606" r="112" fill="#000"/>
+    </mask>
+  </defs>
+  <rect x="32" y="32" width="960" height="960" rx="228" fill="url(#zemin)"/>
+  <path d="M458.2 168.1 L476.1 117.6 L547.9 117.6 L565.8 168.1 L585.1 171.6 L604.1 176.1 L622.9 181.7 L641.3 188.3 L682.1 153.6 L744.3 189.5 L734.6 242.2 L749.5 254.8 L763.7 268.3 L777.2 282.5 L789.8 297.4 L842.5 287.7 L878.4 349.9 L843.7 390.7 L850.3 409.1 L855.9 427.9 L860.4 446.9 L863.9 466.2 L914.4 484.1 L914.4 555.9 L863.9 573.8 L860.4 593.1 L855.9 612.1 L850.3 630.9 L843.7 649.3 L878.4 690.1 L842.5 752.3 L789.8 742.6 L777.2 757.5 L763.7 771.7 L749.5 785.2 L734.6 797.8 L744.3 850.5 L682.1 886.4 L641.3 851.7 L622.9 858.3 L604.1 863.9 L585.1 868.4 L565.8 871.9 L547.9 922.4 L476.1 922.4 L458.2 871.9 L438.9 868.4 L419.9 863.9 L401.1 858.3 L382.7 851.7 L341.9 886.4 L279.7 850.5 L289.4 797.8 L274.5 785.2 L260.3 771.7 L246.8 757.5 L234.2 742.6 L181.5 752.3 L145.6 690.1 L180.3 649.3 L173.7 630.9 L168.1 612.1 L163.6 593.1 L160.1 573.8 L109.6 555.9 L109.6 484.1 L160.1 466.2 L163.6 446.9 L168.1 427.9 L173.7 409.1 L180.3 390.7 L145.6 349.9 L181.5 287.7 L234.2 297.4 L246.8 282.5 L260.3 268.3 L274.5 254.8 L289.4 242.2 L279.7 189.5 L341.9 153.6 L382.7 188.3 L401.1 181.7 L419.9 176.1 L438.9 171.6 Z M208 520 a304 304 0 1 0 608 0 a304 304 0 1 0 -608 0 Z" fill="#fff" fill-opacity="0.118" fill-rule="evenodd"/>
+  <g mask="url(#bosluk)" fill="#fff">
+    <polyline points="288,744 334,322 512,606 690,322 736,744" fill="none" stroke="#fff" stroke-width="92" stroke-linejoin="round"
+              stroke-linecap="round"/>
+    <circle cx="334" cy="322" r="70"/>
+    <circle cx="690" cy="322" r="70"/>
+  </g>
+  <circle cx="512" cy="606" r="84" fill="url(#turkuaz)"/>
+</svg>

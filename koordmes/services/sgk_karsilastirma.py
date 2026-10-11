@@ -17,9 +17,11 @@ from pathlib import Path
 from typing import Any
 
 from .. import config
+from ..mevzuat import isletmeye_giden_sinif
 from . import aktarim, okuyucu, sigorta
 from .aktarim import IceAktarmaTanimi, metin, norm, sayi, tr_ad
 from .okuyucu import Tablo
+from .sgk_dosya import CIRAK_STATULERI
 from .utils import ay_araligi, para, tc_gecerli
 
 SGK_LISTESI = IceAktarmaTanimi("sgk_liste", "SGK Sigortalı / Hizmet Listesi", [
@@ -234,6 +236,7 @@ EYLEM_ADLARI = {
     "giris_isaretle": "Yerleştirmeyi 'işe giriş bildirildi' olarak işaretle",
     "cikis_isaretle": "Yerleştirmeyi 'işten ayrılış bildirildi' olarak işaretle",
     "baslangic_duzelt": "Yerleştirme başlangıcını SGK giriş tarihi yap",
+    "yerlestirme_olustur": "SGK giriş/çıkış tarihleriyle yerleştirme (sigorta) kaydı oluştur",
 }
 SEVIYE_SIRASI = {"Kritik": 0, "Uyarı": 1, "Bilgi": 2}
 
@@ -273,6 +276,23 @@ def _yerlestirme(db, ogrenci_id: int, yil: int, ay: int):
 
 def _tarih_metni(d: date | None) -> str:
     return d.strftime("%d.%m.%Y") if d else "-"
+
+
+def _sgk_tarihleri(k) -> dict:
+    return {"giris": k.giris, "cikis": k.cikis, "belge": k.belge_turu}
+
+
+def yerlestirme_turu_tahmini(db, ogrenci_id: int, belge: str | None = None) -> str:
+    """SGK belge türü (49/50 okulda, 7/42 işletmede) yoksa öğrencinin sınıfı ve statüsünden yerleştirme türü."""
+    o = db.q1("""SELECT o.statu, s.program, s.seviye FROM ogrenciler o LEFT JOIN siniflar s ON s.id = o.sinif_id
+                 WHERE o.id = ?""", (ogrenci_id,))
+    cirak = bool(o) and ((o["program"] or "").upper().startswith("MEM") or o["statu"] in CIRAK_STATULERI)
+    okul_belgeleri = {str(db.ayar("belge_okul_yukumlu")), str(db.ayar("belge_okul_degil"))}
+    if belge and str(belge) in okul_belgeleri:
+        return "Okulda Alan Eğitimi"
+    if belge or (o and isletmeye_giden_sinif(o["program"], o["seviye"])):
+        return "Çıraklık" if cirak else "İşletmede Mesleki Eğitim"
+    return "Okulda Alan Eğitimi"
 
 
 def karsilastir(db, liste: SgkListesi, yil: int | None = None, ay: int | None = None) -> KarsilastirmaSonucu:
@@ -370,12 +390,15 @@ def karsilastir(db, liste: SgkListesi, yil: int | None = None, ay: int | None = 
                     "SGK'da sigortalı görünüyor ama okul kayıtlarına göre bu ay işletmede/okulda alan eğitiminde "
                     "değil. Yerleştirme kaydı eksikse ekleyin (Toplu Veri Girişi). Öğrenci ayrıldıysa işten ayrılış "
                     f"bildirgesi verilmemiş olabilir (geç ayrılış cezası ~{_tl(ceza_cikis)}) ve fazla prim "
-                    "ödenmiştir.", o["id"], tahmini_ceza=round(ceza_cikis, 2)))
+                    "ödenmiştir.", o["id"], eylem="yerlestirme_olustur" if k.giris else "",
+                    deger=_sgk_tarihleri(k), tahmini_ceza=round(ceza_cikis, 2)))
             elif k.giris and not liste.aphb:
                 farklar.append(Fark("Uyarı", "Okulda yerleştirme yok", ad_okul, k.tc, "-",
-                                    f"giriş {_tarih_metni(k.giris)}",
+                                    f"giriş {_tarih_metni(k.giris)}" + (f", çıkış {_tarih_metni(k.cikis)}"
+                                                                         if k.cikis else ""),
                                     "SGK'ya işe giriş bildirilmiş ama okulda bu döneme ait yerleştirme yok. "
-                                    "Yerleştirmeyi ekleyin veya bildirimi kontrol edin.", o["id"]))
+                                    "SGK tarihleriyle yerleştirme oluşturun veya bildirimi kontrol edin.", o["id"],
+                                    eylem="yerlestirme_olustur", deger=_sgk_tarihleri(k)))
             continue
         s = next((x for x in satirlar if x.belge_turu == k.belge_turu), satirlar[0])
         if liste.aphb and k.belge_turu and k.belge_turu != s.belge_turu:
@@ -484,6 +507,22 @@ def duzelt(db, fark: Fark) -> str:
     if e == "baslangic_duzelt" and fark.yerlestirme_id:
         db.update("yerlestirmeler", fark.yerlestirme_id, {"baslangic": v.isoformat()})
         return f"{fark.ogrenci}: başlangıç {v.strftime('%d.%m.%Y')} yapıldı"
+    if e == "yerlestirme_olustur" and fark.ogrenci_id and v and v.get("giris"):
+        giris, cikis = v["giris"], v.get("cikis")
+        cakisan = db.q1("""SELECT id FROM yerlestirmeler WHERE ogrenci_id = ? AND baslangic IS NOT NULL
+                           AND baslangic <= ? AND (bitis IS NULL OR bitis = '' OR bitis >= ?)""",
+                        (fark.ogrenci_id, (cikis or giris).isoformat(), giris.isoformat()))
+        if cakisan:
+            raise ValueError("Öğrencinin bu tarihlerle çakışan bir yerleştirmesi zaten var")
+        tur = yerlestirme_turu_tahmini(db, fark.ogrenci_id, v.get("belge"))
+        vals = {"ogrenci_id": fark.ogrenci_id, "tur": tur, "baslangic": giris.isoformat(),
+                "sigorta_giris_bildirildi": 1, "sigorta_giris_bildirim_tarihi": giris.isoformat()}
+        if cikis:
+            vals.update({"bitis": cikis.isoformat(), "durum": "Sona Erdi", "sigorta_cikis_bildirildi": 1,
+                         "sigorta_cikis_bildirim_tarihi": cikis.isoformat()})
+        db.insert("yerlestirmeler", vals)
+        return (f"{fark.ogrenci}: {tur} kaydı {_tarih_metni(giris)}"
+                + (f" - {_tarih_metni(cikis)}" if cikis else "") + " tarihleriyle oluşturuldu")
     raise ValueError("Bu bulgu için otomatik düzeltme yok")
 
 

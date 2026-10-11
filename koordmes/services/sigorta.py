@@ -96,6 +96,7 @@ class SigortaSatiri:
     giris_tarihi: date | None
     cikis_tarihi: date | None
     isletmeler: list[str] = field(default_factory=list)
+    cikis_nedeni: str = ""  # çıkış yapan yerleştirmenin fesih nedeni
 
 
 def _yerlestirmeler(db, bas: date, bit: date):
@@ -116,11 +117,13 @@ def aylik_liste(db, yil: int, ay: int) -> list[SigortaSatiri]:
         bt = belge_turu(db, y["tur"], yukumlu)
         key = (y["ogrenci_id"], bt)
         g = gruplar.setdefault(key, {"row": y, "gunler": set(), "isletmeler": [], "yukumlu": yukumlu,
-                                     "bas": [], "bit": []})
+                                     "bas": [], "bit": [], "fesih": {}})
         b, e = tarih(y["baslangic"]), tarih(y["bitis"])
         g["gunler"] |= kapsanan_gunler(b, e, yil, ay)
         g["bas"].append(b)
         g["bit"].append(e)
+        if e:
+            g["fesih"][e] = y["fesih_nedeni"] or ""
         if y["isletme"] and y["isletme"] not in g["isletmeler"]:
             g["isletmeler"].append(y["isletme"])
 
@@ -140,7 +143,7 @@ def aylik_liste(db, yil: int, ay: int) -> list[SigortaSatiri]:
         cikis = max(bitisler) if bitisler and None not in g["bit"] and max(bitisler) <= son else None
         out.append(SigortaSatiri(ogr_id, r["tc"] or "", r["ad"], r["soyad"], r["sinif"] or "", bt,
                                  net_gun, eksik, neden, pek, oran, round(pek * oran, 2), giris, cikis,
-                                 g["isletmeler"]))
+                                 g["isletmeler"], g["fesih"].get(cikis, "") if cikis else ""))
     return out
 
 
@@ -168,12 +171,18 @@ class Bildirim:
     son_tarih: date
     gecikti: bool
     belge_turu: str
+    okul_no: str = ""
+    bildirildi: bool = False
+    bildirim_tarihi: date | None = None
 
 
-def bekleyen_bildirimler(db, bugun: date | None = None, ileri_gun: int = 30) -> list[Bildirim]:
+def bekleyen_bildirimler(db, bugun: date | None = None, ileri_gun: int = 30,
+                         dahil_bildirilen: bool = False) -> list[Bildirim]:
+    """Verilmesi gereken işe giriş / işten ayrılış bildirimleri; dahil_bildirilen ise 'bildirildi' işaretli
+    olanlar da (bildirildi=True) listelenir."""
     bugun = bugun or date.today()
     rows = db.q(
-        """SELECT y.*, o.tc, o.ad, o.soyad, o.bakmakla_yukumlu, s.ad AS sinif, i.ad AS isletme
+        """SELECT y.*, o.tc, o.ad, o.soyad, o.okul_no, o.bakmakla_yukumlu, s.ad AS sinif, i.ad AS isletme
            FROM yerlestirmeler y JOIN ogrenciler o ON o.id = y.ogrenci_id
            LEFT JOIN siniflar s ON s.id = o.sinif_id LEFT JOIN isletmeler i ON i.id = y.isletme_id
            WHERE y.baslangic IS NOT NULL""")
@@ -189,24 +198,28 @@ def bekleyen_bildirimler(db, bugun: date | None = None, ileri_gun: int = 30) -> 
         digerleri = [x for x in by_ogr[r["ogrenci_id"]] if x["id"] != r["id"]]
         bt = belge_turu(db, r["tur"], bool(r["bakmakla_yukumlu"]))
         ad = f"{r['ad']} {r['soyad']}"
-        if not r["sigorta_giris_bildirildi"] and b and b <= bugun + timedelta(days=ileri_gun):
-            devam = any(tarih(x["baslangic"]) and tarih(x["baslangic"]) < b and
-                        (tarih(x["bitis"]) is None or tarih(x["bitis"]) >= b - timedelta(days=DEVAM_ARALIK_GUN))
-                        for x in digerleri)
-            if not devam:
-                son = b - timedelta(days=giris_once)
-                out.append(Bildirim(r["id"], "Giriş", ad, r["tc"] or "", r["sinif"] or "", r["isletme"] or "",
-                                    b, son, bugun > son, bt))
-        if e and not r["sigorta_cikis_bildirildi"] and e <= bugun + timedelta(days=ileri_gun):
-            devam = any(tarih(x["baslangic"]) and e < tarih(x["baslangic"]) <= e + timedelta(days=DEVAM_ARALIK_GUN)
-                        or (tarih(x["baslangic"]) and tarih(x["baslangic"]) <= e and
-                            (tarih(x["bitis"]) is None or tarih(x["bitis"]) > e))
-                        for x in digerleri)
-            if not devam:
-                son = e + timedelta(days=cikis_sure)
-                out.append(Bildirim(r["id"], "Çıkış", ad, r["tc"] or "", r["sinif"] or "", r["isletme"] or "",
-                                    e, son, bugun > son, bt))
-    out.sort(key=lambda x: x.son_tarih)
+        yeni = lambda tur, olay, son, bildirildi, bt_: Bildirim(
+            r["id"], tur, ad, r["tc"] or "", r["sinif"] or "", r["isletme"] or "", olay, son,
+            not bildirildi and bugun > son, bt_, r["okul_no"] or "", bool(bildirildi),
+            tarih(r["sigorta_giris_bildirim_tarihi" if tur == "Giriş" else "sigorta_cikis_bildirim_tarihi"]))
+        if b and b <= bugun + timedelta(days=ileri_gun):
+            if r["sigorta_giris_bildirildi"]:
+                if dahil_bildirilen:
+                    out.append(yeni("Giriş", b, b - timedelta(days=giris_once), True, bt))
+            elif not any(tarih(x["baslangic"]) and tarih(x["baslangic"]) < b and
+                         (tarih(x["bitis"]) is None or tarih(x["bitis"]) >= b - timedelta(days=DEVAM_ARALIK_GUN))
+                         for x in digerleri):
+                out.append(yeni("Giriş", b, b - timedelta(days=giris_once), False, bt))
+        if e and e <= bugun + timedelta(days=ileri_gun):
+            if r["sigorta_cikis_bildirildi"]:
+                if dahil_bildirilen:
+                    out.append(yeni("Çıkış", e, e + timedelta(days=cikis_sure), True, bt))
+            elif not any(tarih(x["baslangic"]) and e < tarih(x["baslangic"]) <= e + timedelta(days=DEVAM_ARALIK_GUN)
+                         or (tarih(x["baslangic"]) and tarih(x["baslangic"]) <= e and
+                             (tarih(x["bitis"]) is None or tarih(x["bitis"]) > e))
+                         for x in digerleri):
+                out.append(yeni("Çıkış", e, e + timedelta(days=cikis_sure), False, bt))
+    out.sort(key=lambda x: (x.bildirildi, x.son_tarih))
     return out
 
 
@@ -216,3 +229,8 @@ def bildirildi_isaretle(db, yerlestirme_id: int, tur: str, tarih_: date | None =
         db.update("yerlestirmeler", yerlestirme_id, {"sigorta_giris_bildirildi": 1, "sigorta_giris_bildirim_tarihi": t})
     else:
         db.update("yerlestirmeler", yerlestirme_id, {"sigorta_cikis_bildirildi": 1, "sigorta_cikis_bildirim_tarihi": t})
+
+
+def bildirildi_kaldir(db, yerlestirme_id: int, tur: str) -> None:
+    on = "sigorta_giris" if tur == "Giriş" else "sigorta_cikis"
+    db.update("yerlestirmeler", yerlestirme_id, {f"{on}_bildirildi": 0, f"{on}_bildirim_tarihi": None})

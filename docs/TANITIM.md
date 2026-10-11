@@ -49,7 +49,12 @@ bütün hesapları, listeleri ve resmî belgeleri bu tek kaynaktan üretir.
 
 ### Mesleki eğitim süreçleri
 - **Ders Programı:** Ders dağılımı, otomatik ders programı ve atölye/laboratuvar yerleşimi; kilitli hücreler,
-  öğretmen müsaitliği ve çakışma kontrolü; Excel ve PDF çıktısı.
+  öğretmen müsaitliği ve çakışma kontrolü; Excel ve PDF çıktısı. Sınıfların kapalı saatleri, öğle arası, ders
+  grupları, toplu çakma, program sürümleri, sınıf öğretmenliği ataması, ders devri ve yük analizi.
+- **Sınav Planlama ve Görevlendirme:** Sorumluluk, beceri ve ortak sınavların e-Okul listesinden aktarılması,
+  seans çizelgesi, otomatik sınav takvimi (öğrenci çakışması, günlük sınır, kurallar, salon kapasitesi),
+  komisyon ve gözcü görevlendirmesi, salon/sıra dağıtımı; takvim, giriş belgesi, görevlendirme yazısı,
+  yoklama listesi, tutanak ve zarf kapağı çıktıları.
 - **Yerleştirme ve Sözleşmeler:** İşletmelerde mesleki eğitim ve çıraklık yerleştirmeleri, toplu yerleştirme,
   sözleşme belgelerinin otomatik üretimi.
 - **Koordinatörlük:** Ortaöğretim Kurumları Yönetmeliği md.88'e göre otomatik koordinatör görevlendirme

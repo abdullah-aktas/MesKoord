@@ -3,7 +3,7 @@ MesKoord SON KULLANICI LİSANS SÖZLEŞMESİ
 Köşeli parantez içindeki yerler doldurulmalıdır.)
 
 1. TARAFLAR
-Lisans veren: [OKUL ADI] Döner Sermaye İşletmesi, [ADRES] ("Lisans Veren").
+Lisans veren: [Deri Mesleki ve Teknik Anadolu Lisesi] Döner Sermaye İşletmesi, [Bahçelievler Mahallesi Riya Qosere Caddesi No:20/1 Derik Mardin] ("Lisans Veren").
 Lisans alan: Lisans dosyasında adı ve MEB kurum kodu yazılı okul/kurum ("Kurum").
 
 2. KONU
@@ -54,7 +54,7 @@ yalnızca aşağıdaki şartlarla, münhasır olmayan ve devredilemeyen bir kull
 
 8. FİKRÎ HAKLAR
 Program üzerindeki fikrî ve sınaî haklar 5846 sayılı Fikir ve Sanat Eserleri Kanunu çerçevesinde
-[HAK SAHİBİ] adına saklıdır.
+[Derik Mesleki ve Teknik Anodolu Lisesi] adına saklıdır.
 
 9. AÇIK KAYNAK BİLEŞENLER
 Program; Qt for Python (PySide6, LGPLv3), Qt WebEngine/Chromium ve program klasöründeki

@@ -51,14 +51,20 @@ def sgk_prim_listesi(db, yil: int, ay: int, yol: Path | str | None = None) -> Pa
     return x.kaydet(_yol(yol, f"SGK Aylık Prim Hizmet Listesi {_donem(yil, ay)}"))
 
 
-BILDIRIM_BASLIKLAR = ["İşlem", "Öğrenci", "T.C. Kimlik No", "Sınıf", "İşletme", "Belge Türü", "Olay Tarihi",
-                      "Son Bildirim", "Durum"]
+BILDIRIM_BASLIKLAR = ["İşlem", "Öğrenci", "Okul No", "T.C. Kimlik No", "Sınıf", "İşletme", "Belge Türü",
+                      "Olay Tarihi", "Son Bildirim", "Durum"]
 
 
-def bildirim_satirlari(db) -> tuple[Satirlar, list[sigorta.Bildirim]]:
-    liste = sigorta.bekleyen_bildirimler(db)
-    return [[b.tur, b.ogrenci, b.tc, b.sinif, b.isletme, b.belge_turu, tr(b.olay_tarihi), tr(b.son_tarih),
-             "SÜRESİ GEÇTİ" if b.gecikti else "Bekliyor"] for b in liste], liste
+def _bildirim_durumu(b: sigorta.Bildirim) -> str:
+    if b.bildirildi:
+        return f"Bildirildi {tr(b.bildirim_tarihi)}".strip()
+    return "SÜRESİ GEÇTİ" if b.gecikti else "Bekliyor"
+
+
+def bildirim_satirlari(db, dahil_bildirilen: bool = False) -> tuple[Satirlar, list[sigorta.Bildirim]]:
+    liste = sigorta.bekleyen_bildirimler(db, dahil_bildirilen=dahil_bildirilen)
+    return [[b.tur, b.ogrenci, b.okul_no, b.tc, b.sinif, b.isletme, b.belge_turu, tr(b.olay_tarihi),
+             tr(b.son_tarih), _bildirim_durumu(b)] for b in liste], liste
 
 
 def sgk_bildirim_listesi(db, yol: Path | str | None = None) -> Path:
@@ -135,14 +141,15 @@ def dekont_takip(db, yil: int, ay: int, yol: Path | str | None = None) -> Path:
 def ekders_tablosu(db, yil: int, ay: int) -> tuple[list[str], Satirlar, list[ekders.Puantaj]]:
     gun_sayisi = calendar.monthrange(yil, ay)[1]
     basliklar = ["Öğretmen", "Unvan", "Aylık Karşılık", "Azami Ek"] + [str(d) for d in range(1, gun_sayisi + 1)] + \
-                ["Ders (Ek)", "İşl. Meslek Eğt.", "Elle Girilen", "Gündüz", "Gece", "Toplam", "Tahmini Brüt (TL)"]
+                ["Ders (Ek)", "İşl. Meslek Eğt.", "Rehberlik/Kulüp", "Elle Girilen", "Gündüz", "Gece", "Toplam",
+                 "Tahmini Brüt (TL)"]
     liste = ekders.puantaj(db, yil, ay)
     satirlar = []
     for p in liste:
         gunler = [p.gunluk.get(d) or None for d in range(1, gun_sayisi + 1)]
         satirlar.append([p.ad, p.unvan, p.aylik_karsilik, p.azami]
                         + [int(g) if g and float(g).is_integer() else g for g in gunler]
-                        + [p.ders, p.isletme, sum(p.diger.values()), p.gunduz, p.gece, p.toplam, p.brut])
+                        + [p.ders, p.isletme, p.gorev, sum(p.diger.values()), p.gunduz, p.gece, p.toplam, p.brut])
     return basliklar, satirlar, liste
 
 

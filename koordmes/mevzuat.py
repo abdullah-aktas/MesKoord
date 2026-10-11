@@ -147,6 +147,8 @@ PARAMETRELER: list[Parametre] = [
               "Koordinatörlük", "Komisyon kararı (uzaklık, öğrenci sayısı vb.)"),
     Parametre("koord_ogrenci_ek_saat", "Komisyon ölçütü: her N öğrenci için +1 saat (N)", "5", "int",
               "Koordinatörlük", "Komisyon kararı"),
+    Parametre("koord_form_teslim_gun", "Günlük rehberlik görev formunun teslim süresi (gün); aylık formlar ay "
+              "sonundan itibaren", "5", "int", "Koordinatörlük", "Okul uygulaması"),
     Parametre("koord_uzak_km", "Komisyon ölçütü: bu km'den uzak işletmeye +1 saat", "10", "float",
               "Koordinatörlük", "Komisyon kararı"),
     Parametre("koord_grup_ogrenci", "Aynı işletme ve alanda bir koordinatör öğretmene düşen azami öğrenci", "15",
@@ -178,6 +180,42 @@ PARAMETRELER: list[Parametre] = [
               "Ders Programı", "Okul uygulaması"),
     Parametre("program_kapasite_denetimi", "Atölye seçiminde kapasiteyi (öğrenci/grup mevcudu) gözet", "1",
               "bool", "Ders Programı", "Atölye/laboratuvar kapasitesi"),
+    Parametre("program_ogle_arasi", "Öğle arası kaçıncı ders saatinden sonra (0: yok); blok dersler öğle arasında "
+              "bölünmez", "0", "int", "Ders Programı", "Okul çizelgesi"),
+    Parametre("program_ogretmen_ayni_gun", "Bir öğretmenin aynı sınıftaki farklı dersleri aynı güne gelmesin "
+              "(rehberlik hariç)", "0", "bool", "Ders Programı", "Okul uygulaması"),
+    Parametre("ekders_karsilik_once_gun", "Maaş/ek ders işaretinde aylık karşılığı haftanın ilk gün ve saatlerinden "
+              "doldur (kapalıysa ek dersler günlere dengeli dağılır)", "1", "bool", "Ek Ders", "Okul uygulaması"),
+    Parametre("ekders_sinif_rehberlik_saat", "Sınıf rehber öğretmenliği haftalık ders görevi (saat)", "2", "int",
+              "Ek Ders", "Ders ve Ek Ders Saatlerine İlişkin Karar (sınıf rehber öğretmenliği) - güncel metni "
+              "kontrol ediniz"),
+    Parametre("ekders_kulup_saat", "Öğrenci kulübü / sosyal etkinlik danışmanlığı haftalık ders görevi (saat)", "2",
+              "int", "Ek Ders", "Ders ve Ek Ders Saatlerine İlişkin Karar (ÖSKH / kulüp) - güncel metni kontrol "
+              "ediniz"),
+    Parametre("ekders_rehberlik_kulup_birlikte", "Sınıf rehberliği olan öğretmenin kulüp saati de sayılsın", "0",
+              "bool", "Ek Ders", "Okul uygulaması (kapalıysa yalnız sınıf rehberliği sayılır)"),
+    Parametre("ekders_sef_saat", "Alan / atölye / laboratuvar şefliği haftalık ders görevi (saat; şeflere "
+              "rehberlik ve kulüp saati yazılmaz)", "0", "int", "Ek Ders",
+              "Ders ve Ek Ders Saatlerine İlişkin Karar - okulunuzdaki uygulamayı giriniz"),
+    Parametre("ekders_gorevler_puantaja", "Rehberlik, kulüp ve şeflik saatleri aylık ek ders puantajına eklensin",
+              "1", "bool", "Ek Ders", "Okul uygulaması"),
+    Parametre("program_ogle_tum_bloklar", "Öğle arasında bütün blok dersler bölünmesin (kapalıysa yalnız 'öğle "
+              "arasında bölünmez' işaretli dersler)", "1", "bool", "Ders Programı", "Okul uygulaması"),
+    Parametre("program_genel_kapali", "Okul geneli ders konmayacak saatler (ör. 5-7,5-8: cuma 7. ve 8. saat)", "",
+              "str", "Ders Programı", "Okul çizelgesi"),
+    Parametre("program_yarim_gun_saat", "İkili öğretimde sabahçı yarının son saati (0: günlük saatin yarısı)", "0",
+              "int", "Ders Programı", "Okul çizelgesi"),
+    Parametre("program_ogretmen_yarim_gun", "Öğretmen aynı gün hem sabah hem öğleden sonra derse girmesin", "0",
+              "bool", "Ders Programı", "Okul uygulaması"),
+    Parametre("program_ogretmen_bos_gun", "Öğretmenlere mümkünse en az bir boş gün kalsın", "0", "bool",
+              "Ders Programı", "Okul uygulaması"),
+    Parametre("program_ogretmen_bosluk", "Öğretmen boş (pencere) saatlerini en aza indir", "1", "bool",
+              "Ders Programı", "Okul uygulaması"),
+    Parametre("program_sinif_bosluk", "Sınıf programında boş saat kalmasın", "1", "bool", "Ders Programı",
+              "Okul uygulaması"),
+    Parametre("program_iyilestirme_tur", "Yerleştirme sonrası iyileştirme turu (0: yapılmaz)", "2", "int",
+              "Ders Programı", "Süre sınırı içinde taşıma/yer değiştirme ile boşluklar azaltılır"),
+    # [EK-PARAMETRE: DERS PROGRAMI]
 
     # --- Devamsızlık ---
     Parametre("devamsizlik_ozursuz_sinir", "Özürsüz devamsızlık sınırı (gün)", "10", "float",
@@ -186,6 +224,8 @@ PARAMETRELER: list[Parametre] = [
               "Devamsızlık", "Ortaöğretim Kurumları Yönetmeliği md.36"),
     Parametre("devamsizlik_veli_esik", "Veliye yazılı bildirim eşiği - özürsüz (gün)", "5", "float",
               "Devamsızlık", "Okul uygulaması - yönetmeliği kontrol ediniz"),
+    # [EK-PARAMETRE: SGK]
+    # [EK-PARAMETRE: MES]
 ]
 
 PARAMETRE_SOZLUK = {p.anahtar: p for p in PARAMETRELER}
@@ -198,7 +238,7 @@ YERLESTIRME_TURLERI = ["İşletmede Mesleki Eğitim", "Staj", "Çıraklık", "Ta
                        "Okulda Alan Eğitimi"]
 OKUL_ICI_TURLER = {"Okulda Alan Eğitimi"}
 
-OGRENCI_STATULERI = ["Öğrenci", "Aday Çırak", "Çırak", "Kalfa (MEM 12)"]
+OGRENCI_STATULERI = ["Öğrenci", "Aday Çırak", "Çırak", "Kalfa (MEM 12)", "Açık Lise"]
 # MTAL-AMP-11: işletmelerde mesleki eğitime 11. sınıfta başlayan okullar için Anadolu Meslek Programı
 PROGRAMLAR = ["MTAL-AMP", "MTAL-AMP-11", "MTAL-ATP", "MEM"]
 # İşletmeye yerleştirilmesi gereken sınıflar (siniflar tablosu "s" takma adıyla)

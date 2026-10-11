@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateEdit, QF
                                QLabel, QListWidget, QListWidgetItem, QPushButton, QSpinBox, QSplitter, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
+from ..mevzuat import OGRENCI_STATULERI
 from ..services import aktarim, okuyucu, surecler
 from ..services.aktarim import TANIMLAR, IceAktarmaSonucu, Secenekler
 from ..services.okuyucu import Tablo
@@ -132,10 +133,28 @@ class AktarimSayfasi(QWidget):
         self.tarih.setDisplayFormat("dd.MM.yyyy")
         self.yer_lbl = QLabel("Devamsızlık yeri (dosyada yoksa):")
         self.yer = QComboBox()
-        self.yer.addItems(["Okul", "İşletme"])
+        self.yer.addItems(["Okul", "İşletme", "Otomatik"])
+        self.yer.setItemData(2, "Tarih, öğrencinin sınıfının işletme günlerinden birine denk geliyorsa İşletme, "
+                                "değilse Okul devamsızlığı sayılır.", Qt.ToolTipRole)
+        self.aralik = QCheckBox("Yalnızca şu tarihler arası:")
+        self.aralik.setToolTip("e-Okul ayrıntılı devamsızlık raporu (OOK08001R060) tüm yılı içerir; yalnızca seçilen "
+                               "aralıktaki devamsızlıklar işlenir.")
+        self.aralik_bas = QDateEdit(QDate(QDate.currentDate().year(), QDate.currentDate().month(), 1))
+        self.aralik_bit = QDateEdit(QDate.currentDate())
+        for w in (self.aralik_bas, self.aralik_bit):
+            w.setCalendarPopup(True)
+            w.setDisplayFormat("dd.MM.yyyy")
         self.donem_lbl = QLabel("Dönem (dosyada yoksa):")
         self.donem = ortak.AySecici()
-        for w in (self.tarih_lbl, self.tarih, self.yer_lbl, self.yer, self.donem_lbl, self.donem):
+        self.statu_lbl = QLabel("Statü (dosyada yoksa):")
+        self.statu = QComboBox()
+        self.statu.addItem("— Değiştirme / otomatik —", None)
+        for s in OGRENCI_STATULERI:
+            self.statu.addItem(s, s)
+        self.statu.setToolTip("MAOL 'Yüz Yüze Eğitim Öğrenci Listesi' dosyaları kendiliğinden 'Açık Lise' "
+                              "statüsüyle aktarılır.")
+        for w in (self.tarih_lbl, self.tarih, self.yer_lbl, self.yer, self.aralik, self.aralik_bas, self.aralik_bit,
+                  self.donem_lbl, self.donem, self.statu_lbl, self.statu):
             r3.addWidget(w)
         r3.addStretch(1)
         rl.addLayout(r3)
@@ -326,10 +345,12 @@ class AktarimSayfasi(QWidget):
         self.tarih_lbl.setText((t.tarih_etiketi if t else "") + ":")
         for w in (self.tarih_lbl, self.tarih):
             w.setVisible(tarih)
-        for w in (self.yer_lbl, self.yer):
+        for w in (self.yer_lbl, self.yer, self.aralik, self.aralik_bas, self.aralik_bit):
             w.setVisible(anahtar == "devamsizlik")
         for w in (self.donem_lbl, self.donem):
             w.setVisible(anahtar == "dekontlar")
+        for w in (self.statu_lbl, self.statu):
+            w.setVisible(anahtar == "ogrenciler")
 
     def _ornek(self, o: _Oge, j: int) -> str:
         for row in o.tablo.satirlar[o.bas + 1:o.bas + 30]:
@@ -430,10 +451,14 @@ class AktarimSayfasi(QWidget):
 
     def _secenekler(self) -> Secenekler:
         q = self.tarih.date()
+        gun = lambda w: date(w.date().year(), w.date().month(), w.date().day())
+        aralik = self.aralik.isVisible() and self.aralik.isChecked()
         return Secenekler(guncelle=self.guncelle.isChecked(), olustur=self.olustur.isChecked(),
                           tarih=date(q.year(), q.month(), q.day()) if self.tarih.isVisible() else None,
                           devamsizlik_yeri=self.yer.currentText(),
-                          donem=self.donem.deger() if self.donem.isVisible() else None)
+                          donem=self.donem.deger() if self.donem.isVisible() else None,
+                          ogrenci_statusu=self.statu.currentData() if self.statu.isVisible() else None,
+                          bas=gun(self.aralik_bas) if aralik else None, bit=gun(self.aralik_bit) if aralik else None)
 
     def aktar_secili(self, deneme: bool):
         o = self._secili()

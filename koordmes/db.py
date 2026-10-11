@@ -177,11 +177,101 @@ CREATE TABLE IF NOT EXISTS islem_gunlugu (
     islem TEXT NOT NULL, tablo TEXT NOT NULL, kayit_id INTEGER, kayit TEXT DEFAULT '', ayrinti TEXT DEFAULT ''
 );
 
+CREATE TABLE IF NOT EXISTS program_ders_gruplari (
+    id INTEGER PRIMARY KEY, ad TEXT NOT NULL, dersler TEXT DEFAULT '', aktif INTEGER DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS program_surumleri (
+    id INTEGER PRIMARY KEY, ad TEXT NOT NULL, tarih TEXT, aciklama TEXT DEFAULT '', veri TEXT NOT NULL DEFAULT '[]'
+);
+
+CREATE TABLE IF NOT EXISTS belge_takibi (
+    id INTEGER PRIMARY KEY, tur TEXT NOT NULL, tarih TEXT NOT NULL,
+    ogretmen_id INTEGER REFERENCES ogretmenler(id) ON DELETE CASCADE,
+    isletme_id INTEGER REFERENCES isletmeler(id) ON DELETE CASCADE,
+    teslim_tarihi TEXT, barkod TEXT DEFAULT '', aciklama TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS sinav_donemleri (
+    id INTEGER PRIMARY KEY, ad TEXT NOT NULL, tur TEXT DEFAULT 'Sorumluluk', baslangic TEXT, bitis TEXT,
+    ogrenci_gunluk_azami INTEGER DEFAULT 2, ogretmen_gunluk_azami INTEGER DEFAULT 3,
+    komisyon_uye_sayisi INTEGER DEFAULT 2, gozcu_ogrenci_sayisi INTEGER DEFAULT 25, aciklama TEXT DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS sinav_seanslari (
+    id INTEGER PRIMARY KEY, donem_id INTEGER NOT NULL REFERENCES sinav_donemleri(id) ON DELETE CASCADE,
+    tarih TEXT NOT NULL, sira INTEGER NOT NULL DEFAULT 1, baslangic TEXT DEFAULT '', bitis TEXT DEFAULT '',
+    acik INTEGER DEFAULT 1, UNIQUE (donem_id, tarih, sira)
+);
+CREATE TABLE IF NOT EXISTS sinav_salonlari (
+    id INTEGER PRIMARY KEY, ad TEXT NOT NULL, kapasite INTEGER DEFAULT 30, sira INTEGER DEFAULT 0,
+    aktif INTEGER DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS sinavlar (
+    id INTEGER PRIMARY KEY, donem_id INTEGER NOT NULL REFERENCES sinav_donemleri(id) ON DELETE CASCADE,
+    ders TEXT NOT NULL, seviye INTEGER, grup TEXT DEFAULT '', sekil TEXT DEFAULT 'Yazılı', sure_dk INTEGER DEFAULT 40,
+    alan_id INTEGER REFERENCES alanlar(id) ON DELETE SET NULL,
+    ders_id INTEGER REFERENCES dersler(id) ON DELETE SET NULL,
+    seans_id INTEGER REFERENCES sinav_seanslari(id) ON DELETE SET NULL, cakili INTEGER DEFAULT 0,
+    aciklama TEXT DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS sinav_ogrencileri (
+    id INTEGER PRIMARY KEY, sinav_id INTEGER NOT NULL REFERENCES sinavlar(id) ON DELETE CASCADE,
+    ogrenci_id INTEGER NOT NULL REFERENCES ogrenciler(id) ON DELETE CASCADE,
+    salon_id INTEGER REFERENCES sinav_salonlari(id) ON DELETE SET NULL, sira_no INTEGER,
+    UNIQUE (sinav_id, ogrenci_id)
+);
+CREATE TABLE IF NOT EXISTS sinav_gorevlileri (
+    id INTEGER PRIMARY KEY, sinav_id INTEGER NOT NULL REFERENCES sinavlar(id) ON DELETE CASCADE,
+    ogretmen_id INTEGER NOT NULL REFERENCES ogretmenler(id) ON DELETE CASCADE,
+    gorev TEXT DEFAULT 'Komisyon Üyesi', salon_id INTEGER REFERENCES sinav_salonlari(id) ON DELETE SET NULL,
+    kilitli INTEGER DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS sinav_ogretmenleri (
+    id INTEGER PRIMARY KEY, donem_id INTEGER NOT NULL REFERENCES sinav_donemleri(id) ON DELETE CASCADE,
+    ogretmen_id INTEGER NOT NULL REFERENCES ogretmenler(id) ON DELETE CASCADE,
+    gorev_alir INTEGER DEFAULT 1, gunluk_azami INTEGER, kapali_seanslar TEXT DEFAULT '',
+    UNIQUE (donem_id, ogretmen_id)
+);
+CREATE TABLE IF NOT EXISTS sinav_ogrenci_kapali (
+    id INTEGER PRIMARY KEY, donem_id INTEGER NOT NULL REFERENCES sinav_donemleri(id) ON DELETE CASCADE,
+    ogrenci_id INTEGER NOT NULL REFERENCES ogrenciler(id) ON DELETE CASCADE,
+    seans_id INTEGER NOT NULL REFERENCES sinav_seanslari(id) ON DELETE CASCADE,
+    UNIQUE (donem_id, ogrenci_id, seans_id)
+);
+CREATE TABLE IF NOT EXISTS sinav_kurallari (
+    id INTEGER PRIMARY KEY, donem_id INTEGER NOT NULL REFERENCES sinav_donemleri(id) ON DELETE CASCADE,
+    ders1 TEXT NOT NULL, ders2 TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sinav_salon_atamalari (
+    id INTEGER PRIMARY KEY, sinav_id INTEGER NOT NULL REFERENCES sinavlar(id) ON DELETE CASCADE,
+    salon_id INTEGER NOT NULL REFERENCES sinav_salonlari(id) ON DELETE CASCADE, UNIQUE (sinav_id, salon_id)
+);
+CREATE TABLE IF NOT EXISTS sinav_gun_kurallari (
+    id INTEGER PRIMARY KEY, donem_id INTEGER NOT NULL REFERENCES sinav_donemleri(id) ON DELETE CASCADE,
+    ders TEXT, seviye INTEGER, kapsam TEXT DEFAULT 'sinav', tarihler TEXT DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS sinav_nobetci (
+    id INTEGER PRIMARY KEY, donem_id INTEGER NOT NULL REFERENCES sinav_donemleri(id) ON DELETE CASCADE,
+    tarih TEXT NOT NULL, ogretmen_id INTEGER NOT NULL REFERENCES ogretmenler(id) ON DELETE CASCADE,
+    UNIQUE (donem_id, tarih)
+);
+-- [EK-TABLO: SINAV]
+CREATE TABLE IF NOT EXISTS ders_mekanlari (
+    id INTEGER PRIMARY KEY, ders_id INTEGER REFERENCES dersler(id) ON DELETE CASCADE,
+    atama_id INTEGER REFERENCES ders_atamalari(id) ON DELETE CASCADE,
+    atolye_id INTEGER NOT NULL REFERENCES atolyeler(id) ON DELETE CASCADE
+);
+-- [EK-TABLO: DERS PROGRAMI]
+-- [EK-TABLO: SGK]
+-- [EK-TABLO: MES]
+
 CREATE INDEX IF NOT EXISTS ix_gunluk_zaman ON islem_gunlugu(zaman);
 CREATE INDEX IF NOT EXISTS ix_ph_atama ON program_hucreleri(atama_id);
 CREATE INDEX IF NOT EXISTS ix_yer_ogr ON yerlestirmeler(ogrenci_id);
 CREATE INDEX IF NOT EXISTS ix_dev_ogr ON devamsizlik(ogrenci_id, tarih);
 CREATE INDEX IF NOT EXISTS ix_ziy_tarih ON ziyaretler(tarih);
+CREATE INDEX IF NOT EXISTS ix_belge_tarih ON belge_takibi(tarih);
+CREATE INDEX IF NOT EXISTS ix_sinav_ogr ON sinav_ogrencileri(ogrenci_id);
+CREATE INDEX IF NOT EXISTS ix_sinav_seans ON sinavlar(donem_id, seans_id);
 """
 
 # Sonradan eklenen kolonlar; eski veritabanlarına açılışta eklenir.
@@ -209,6 +299,53 @@ EK_KOLONLAR = [
     ("ogretmenler", "nobet_gun", "INTEGER"),
     ("ogretmenler", "nobet_yeri", "TEXT"),
     ("ogretmenler", "sinif_ogretmenligi", "TEXT"),
+    ("siniflar", "kapali_saatler", "TEXT DEFAULT ''"),
+    ("ogrenciler", "baba_adi", "TEXT DEFAULT ''"),
+    ("ogrenciler", "anne_adi", "TEXT DEFAULT ''"),
+    ("ogrenciler", "dogum_yeri", "TEXT DEFAULT ''"),
+    ("ogrenciler", "nufus_il", "TEXT DEFAULT ''"),
+    ("ogrenciler", "nufus_ilce", "TEXT DEFAULT ''"),
+    ("koordinator_gorevleri", "saatler", "TEXT DEFAULT ''"),
+    ("sinav_donemleri", "uygulama_saati", "TEXT DEFAULT ''"),
+    ("sinav_donemleri", "sozlu_saati", "TEXT DEFAULT ''"),
+    ("sinav_donemleri", "oturma_duzeni", "TEXT DEFAULT 'Sınıf ve ada göre'"),
+    ("sinav_donemleri", "komisyon_ucret_saat", "REAL DEFAULT 1"),
+    ("sinav_donemleri", "gozcu_ucret_saat", "REAL DEFAULT 1"),
+    ("sinav_donemleri", "yillik_azami_gorev", "INTEGER"),
+    ("sinav_donemleri", "baslik_aciklama", "TEXT DEFAULT ''"),
+    ("sinav_donemleri", "duzenleyen", "TEXT DEFAULT ''"),
+    ("sinav_donemleri", "duzenleyen_unvan", "TEXT DEFAULT ''"),
+    ("sinav_donemleri", "onaylayan", "TEXT DEFAULT ''"),
+    ("sinav_donemleri", "onaylayan_unvan", "TEXT DEFAULT ''"),
+    ("sinavlar", "komisyon_sayisi", "INTEGER"),
+    ("sinavlar", "gozcu_sayisi", "INTEGER"),
+    ("sinavlar", "bagli_sinav_id", "INTEGER REFERENCES sinavlar(id) ON DELETE SET NULL"),
+    ("sinavlar", "ucretsiz", "INTEGER DEFAULT 0"),
+    ("sinav_ogrencileri", "tur", "TEXT DEFAULT ''"),
+    ("sinav_ogrencileri", "salon_kilitli", "INTEGER DEFAULT 0"),
+    ("sinav_ogrencileri", "katilim", "TEXT DEFAULT ''"),
+    ("sinav_gorevlileri", "ucretsiz", "INTEGER DEFAULT 0"),
+    ("sinav_gorevlileri", "durum", "TEXT DEFAULT ''"),
+    ("sinav_kurallari", "tur", "TEXT DEFAULT 'ortak_ogrenci'"),
+    ("sinav_ogretmenleri", "onceki_gorev", "INTEGER DEFAULT 0"),
+    # [EK-KOLON: SINAV]
+    ("ogretmenler", "kulup", "TEXT DEFAULT ''"),
+    ("ogretmenler", "sef", "INTEGER DEFAULT 0"),
+    ("dersler", "brans", "TEXT DEFAULT ''"),
+    ("dersler", "blok_deseni", "TEXT DEFAULT ''"),
+    ("dersler", "ogle_bolunmez", "INTEGER DEFAULT 0"),
+    ("ders_atamalari", "blok_deseni", "TEXT DEFAULT ''"),
+    ("ders_atamalari", "mekanli_saat", "INTEGER"),
+    ("ders_atamalari", "ogle_bolunmez", "INTEGER DEFAULT 0"),
+    ("ders_atamalari", "grup", "TEXT DEFAULT ''"),
+    ("atolyeler", "eszamanli", "INTEGER DEFAULT 1"),
+    ("siniflar", "derslik_id", "INTEGER REFERENCES atolyeler(id) ON DELETE SET NULL"),
+    ("siniflar", "tedrisat", "TEXT DEFAULT 'Tam gün'"),
+    ("program_ders_gruplari", "siniflar", "TEXT DEFAULT ''"),
+    ("program_ders_gruplari", "kesin", "INTEGER DEFAULT 0"),
+    # [EK-KOLON: DERS PROGRAMI]
+    # [EK-KOLON: SGK]
+    # [EK-KOLON: MES]
 ]
 
 # Bir dersin öğretmenleri (2. öğretmenli / grup derslerinde iki satır). Öğretmen saat sayımları bu görünümle yapılır.

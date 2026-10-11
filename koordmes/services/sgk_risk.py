@@ -71,6 +71,19 @@ def aphb_anahtari(yil: int, ay: int) -> str:
     return f"aphb_verildi_{yil:04d}-{ay:02d}"
 
 
+def aphb_verildi(db, yil: int, ay: int) -> date | None:
+    return tarih(db.ayar(aphb_anahtari(yil, ay)))
+
+
+def aphb_isaretle(db, yil: int, ay: int, tarih_: date | None = None) -> None:
+    db.ayar_yaz(aphb_anahtari(yil, ay), (tarih_ or date.today()).isoformat())
+
+
+def aphb_isaretini_kaldir(db, yil: int, ay: int) -> None:
+    """'APHB verildi' işaretini kaldırır (iptal edilen ya da yanlışlıkla işaretlenen belge)."""
+    db.ayar_yaz(aphb_anahtari(yil, ay), "")
+
+
 def aphb_son_gunu(db, yil: int, ay: int) -> date:
     y, a = (yil, ay + 1) if ay < 12 else (yil + 1, 1)
     son = ay_araligi(y, a)[1]
@@ -271,7 +284,7 @@ def uygula(db, risk: Risk) -> str:
         return f"{risk.kisi}: {tur.lower()} bildirildi olarak işaretlendi"
     if e.startswith("aphb:"):
         y, a = (int(x) for x in e.split(":")[1].split("-"))
-        db.ayar_yaz(aphb_anahtari(y, a), date.today().isoformat())
+        aphb_isaretle(db, y, a)
         return f"{a:02d}/{y} APHB verildi olarak işaretlendi"
     if e == "yukumlu_kaldir" and risk.ogrenci_id:
         db.update("ogrenciler", risk.ogrenci_id, {"bakmakla_yukumlu": 0})

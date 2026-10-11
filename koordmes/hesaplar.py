@@ -31,7 +31,8 @@ GUNLUK_SAKLAMA_GUN = 730
 GUNLUK_ON_EKI = "kg_"
 YETKI_YOK = "Bu işlem için yetkiniz yok."
 
-GUNLUGE_GIRMEYEN = {"meta", "islem_gunlugu", "program_hucreleri"}
+GUNLUGE_GIRMEYEN = {"meta", "islem_gunlugu", "program_hucreleri", "sinav_ogrencileri", "sinav_gorevlileri",
+                    "sinav_ogrenci_kapali", "sinav_salon_atamalari"}
 GIZLI_KOLONLAR = {"tc", "iban", "telefon", "veli_tel", "adres", "eposta", "dogum_tarihi", "vergi_no",
                   "usta_ogretici_tel", "parola_ozeti", "agir_disiplin", "oncelikli"}
 YONETICI_TABLOLARI = {"kurum", "ayarlar"}
@@ -58,6 +59,12 @@ KAYIT_ADI = {
     "isletme_talepleri": "ifnull(" + _ISLETME + ", '') || ' / ' || ifnull({r}.tarih, '')",
     "anketler": "{r}.tur || ' / ' || ifnull(" + _OGRENCI + ", ifnull(" + _ISLETME + ", ''))",
     "hizmetici_egitimler": "{r}.konu || ' / ' || ifnull({r}.tarih, '')",
+    "belge_takibi": "{r}.tur || ' / ' || ifnull(" + _OGRETMEN + ", '') || ' / ' || {r}.tarih",
+    "sinavlar": "{r}.ders || ' (' || ifnull({r}.seviye, '') || ')'",
+    "sinav_seanslari": "{r}.tarih || ' ' || {r}.sira || '. oturum'",
+    "sinav_ogretmenleri": "ifnull(" + _OGRETMEN + ", '')",
+    "sinav_nobetci": "{r}.tarih || ' / ' || ifnull(" + _OGRETMEN + ", '')",
+    "sinav_gun_kurallari": "ifnull({r}.ders, '') || ' ' || ifnull({r}.seviye, '') || ' / ' || {r}.tarihler",
 }
 ISLEMLER = {"INSERT": ("Ekleme", "NEW"), "UPDATE": ("Değişiklik", "NEW"), "DELETE": ("Silme", "OLD")}
 

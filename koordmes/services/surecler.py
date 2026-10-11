@@ -477,7 +477,9 @@ EYLEMLER: dict[str, Eylem] = {e.anahtar: e for e in [
 for _ad in ["Veri Aktarımı", "Ayarlar ve Mevzuat Parametreleri", "Tatil Günleri", "Öğretmenler", "Öğrenciler / Çıraklar",
             "İşletmeler", "Sınıflar / Şubeler", "Ders Dağılımı ve Atölye Yerleşimi", "Yerleştirme ve Sözleşmeler",
             "Koordinatörlük", "SGK Sigorta İşlemleri", "Öğrenci Ücreti ve Devlet Katkısı", "Devamsızlık ve Değerlendirme",
-            "Ek Ders Puantajı", "Belge Üretimi", "Komisyon ve İzleme İşleri"]:
+            "Ek Ders Puantajı", "Belge Üretimi", "Komisyon ve İzleme İşleri", "e-Okul Öğrenci Eşitleme (Nakil)",
+            "Program Araçları (Kısıt, Sürüm, Devir, Yük)", "Koordinatörlük Formları ve Teslim Takibi",
+            "Sınav Planlama ve Görevlendirme"]:
     EYLEMLER[f"git:{_ad}"] = Eylem(f"git:{_ad}", f"{_ad} ekranını aç", git=_ad)
 
 

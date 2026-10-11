@@ -83,7 +83,7 @@ HIZLI = GirisTuru(
      Sutun("ad_soyad", "Adı Soyadı", True),
      Sutun("sinif", "Sınıf/Şube", ipucu="ör. 11-A"),
      Sutun("program", "Program", ipucu="MEM / MTAL-AMP / MTAL-AMP-11 / MTAL-ATP", secenekler=tuple(PROGRAMLAR)),
-     Sutun("statu", "Statü", ipucu="Öğrenci / Aday Çırak / Çırak / Kalfa (MEM 12)",
+     Sutun("statu", "Statü", ipucu="Öğrenci / Aday Çırak / Çırak / Kalfa (MEM 12) / Açık Lise",
            secenekler=tuple(OGRENCI_STATULERI)),
      Sutun("bakmakla_yukumlu", "Bakmakla Yükümlü (E/H)", ipucu="E: belge 7, H: belge 42", secenekler=EVET_HAYIR),
      Sutun("isletme", "İşletme Adı", True),

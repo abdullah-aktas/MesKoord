@@ -10,15 +10,15 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable
 
-from ..mevzuat import AYLAR, GUNLER, YERLESTIRME_TURLERI
+from ..mevzuat import AYLAR, GUNLER, OKUL_ICI_TURLER, YERLESTIRME_TURLERI
 from . import okuyucu
 from .okuyucu import Tablo
-from .utils import ay_araligi, tarih as _tarih_temel, tc_gecerli
+from .utils import ay_araligi, gunler_listesi, tarih as _tarih_temel, tc_gecerli
 
 # ------------------------------------------------------------------ metin normalleştirme
 
@@ -126,6 +126,19 @@ def evet(v: Any, varsayilan: int | None = None) -> int | None:
     if n in ("0", "h", "hayir", "yok", "false", "no", "pasif"):
         return 0
     return varsayilan
+
+
+def _devam_degeri(v: Any) -> float | None:
+    """Devamsızlık hücresi: sayı (1 / 0,5), 'Yarım Gün' -> 0.5, 'X' / 'Tam Gün' -> 1."""
+    n = norm(v)
+    if not n:
+        return None
+    if "yarim" in n:
+        return 0.5
+    x = sayi(v)
+    if x is not None:
+        return x if 0 < x <= 31 else None
+    return 1.0 if n in ("x", "var", "evet", "e", "tam", "tam gun", "v") else None
 
 
 _GUN_NORM = {norm(g): i for i, g in enumerate(GUNLER, 1)}
@@ -241,11 +254,11 @@ BAGLAM_ADLARI = {"sinif": "Sınıf/Şube", "alan": "Alan", "dal": "Dal", "ay": "
                  "isletme": "İşletme", "ogretmen": "Öğretmen"}
 
 
-def _etiket_sonek(s: str) -> tuple[str, str] | None:
+def _etiket_sonek(s: str, sozluk: dict[str, str] | None = None) -> tuple[str, str] | None:
     """Metnin sonundaki bilinen bağlam etiketi: '11-A   Alanı' -> ('alan', '11-A')."""
     w = s.split()
     for L in range(min(4, len(w)), 0, -1):
-        k = _BAGLAM_ETIKET.get(norm(" ".join(w[-L:])))
+        k = (sozluk or _BAGLAM_ETIKET).get(norm(" ".join(w[-L:])))
         if k:
             return k, " ".join(w[:-L])
     return None
@@ -378,6 +391,72 @@ def on_baglam(tablo: Tablo, bas: int) -> dict[str, str]:
     for i, b in sorted(satir_baglamlari(tablo).items()):
         if i < bas:
             out.update(b)
+    return out
+
+
+# e-Okul ayrıntılı devamsızlık raporunda (OOK08001R060) tarihler öğrenci başına gruplanır: öğrenci bilgisi ya bir ara
+# satırda ("Öğrenci No: 501  Adı Soyadı: ÇAĞLA ÖZTÜRK") ya da grubun yalnızca ilk satırında yazar.
+_OGRENCI_BASLIK_ETIKETLERI = {
+    "okul_no": {"ogrenci no", "okul no", "ogrenci numarasi", "okul numarasi", "ogr no", "numarasi"},
+    "ad_soyad": {"adi soyadi", "ad soyad", "ad soyadi", "ogrenci adi soyadi", "ogrencinin adi soyadi", "ogrenci"},
+    "tc": {"tc kimlik no", "t c kimlik no", "tc no", "t c no", "kimlik no", "tc kimlik numarasi"},
+}
+_OGRENCI_BASLIK = {**_BAGLAM_ETIKET, **{e: k for k, kume in _OGRENCI_BASLIK_ETIKETLERI.items() for e in kume}}
+_GRUPLU_TURLER = ("devamsizlik",)
+
+
+def ogrenci_basligi(row: list[Any]) -> dict[str, str]:
+    """Öğrenci grup başlığı satırındaki kimlik bilgileri: {'okul_no': '501', 'ad_soyad': 'ÇAĞLA ÖZTÜRK'}."""
+    dolu = _dolu_hucreler(row)
+    if not dolu or len(dolu) > 8:
+        return {}
+    parca: list[str] = []
+    for h in dolu:
+        parca += [p.strip() for p in re.split(r"\s{3,}|\t|\n|\|", metin(h)) if p.strip()]
+    out: dict[str, str] = {}
+
+    def ekle(k: str, v: str) -> None:
+        v = re.sub(r"\s+", " ", v).strip(" .-–/:")
+        if k in _OGRENCI_BASLIK_ETIKETLERI and v and k not in out:
+            out[k] = v
+
+    for i, p in enumerate(parca):
+        seg = p.split(":")
+        if len(seg) > 1:
+            etiket = _etiket_sonek(seg[0], _OGRENCI_BASLIK)
+            for k in range(1, len(seg)):
+                deger = seg[k]
+                sonraki = _etiket_sonek(deger, _OGRENCI_BASLIK) if k < len(seg) - 1 else None
+                if sonraki:
+                    deger = sonraki[1]
+                if etiket:
+                    ekle(etiket[0], deger)
+                etiket = sonraki
+        elif norm(p) in _OGRENCI_BASLIK and i + 1 < len(parca) and norm(parca[i + 1]) not in _OGRENCI_BASLIK:
+            k, v = _OGRENCI_BASLIK[norm(p)], parca[i + 1]
+            if (any(c.isdigit() for c in v) if k != "ad_soyad" else len(v.split()) >= 2 and not tarih(v)):
+                ekle(k, v)
+    if not out and len(parca) == 1:
+        m = re.fullmatch(r"(\d{1,6})\s*[-–.)/]?\s+([^\d:]{3,60})", parca[0])
+        if m:
+            out = {"okul_no": m.group(1), "ad_soyad": m.group(2).strip()}
+    if "okul_no" in out and not re.fullmatch(r"[\w\-/]{1,12}", out["okul_no"]):
+        out.pop("okul_no")
+    return out if {"okul_no", "ad_soyad", "tc"} & set(out) else {}
+
+
+def ogrenci_basliklari(tablo: Tablo) -> dict[int, dict[str, str]]:
+    """Öğrenci grup başlığı satırları {satır no: kimlik}."""
+    if tablo.form:
+        return {}
+    onbellek = getattr(tablo, "_ogrenci_onbellek", None)
+    if onbellek is not None and onbellek[0] == len(tablo.satirlar):
+        return onbellek[1]
+    out = {i: b for i, row in enumerate(tablo.satirlar) if (b := ogrenci_basligi(row))}
+    try:
+        tablo._ogrenci_onbellek = (len(tablo.satirlar), out)
+    except AttributeError:
+        pass
     return out
 
 
@@ -533,10 +612,22 @@ TANIMLAR: dict[str, IceAktarmaTanimi] = {t.tablo: t for t in [
         ("basari_ortalamasi", "Yılsonu Başarı Ortalaması", ["yilsonu basari ortalamasi", "yil sonu basari ortalamasi",
                                                            "basari ortalamasi", "yilsonu basari puani",
                                                            "yil sonu basari puani", "ybp"]),
+        ("baba_adi", "Baba Adı", ["baba adi", "babasinin adi", "baba ismi"]),
+        ("anne_adi", "Anne Adı", ["anne adi", "ana adi", "annesinin adi", "anasinin adi", "anne ismi"]),
+        ("dogum_yeri", "Doğum Yeri", ["dogum yeri", "d yeri", "dogdugu yer"]),
+        ("nufus_il", "Nüfusa Kayıtlı İl", ["nufusa kayitli oldugu il", "nufusa kayitli il", "nufus ili", "nufus il",
+                                           "kayitli oldugu il", "nufus kayit ili"]),
+        ("nufus_ilce", "Nüfusa Kayıtlı İlçe", ["nufusa kayitli oldugu ilce", "nufusa kayitli ilce", "nufus ilcesi",
+                                               "nufus ilce", "kayitli oldugu ilce", "nufus kayit ilcesi"]),
         _ALAN, _DAL,
     ], [["ad", "soyad"], ["ad_soyad"]], {"okul_no": 2, "veli_ad": 3, "veli_tel": 3, "dogum_tarihi": 2, "sinif": 2,
-                                         "bakmakla_yukumlu": 2, "statu": 1.5},
-        ["ogrenci", "sinif listesi", "e okul", "cirak"], "ogrenci", 20),
+                                         "bakmakla_yukumlu": 2, "statu": 1.5, "baba_adi": 2, "anne_adi": 2,
+                                         "dogum_yeri": 2, "nufus_il": 2, "nufus_ilce": 2},
+        ["ogrenci", "sinif listesi", "e okul", "cirak", "kunye", "nufus", "yuz yuze", "maol", "acik lise"],
+        "ogrenci", 20,
+        aciklama="e-Okul şube listesi, doğum tarihi raporu (00G01001R070), künye defteri (00G01001R094) ve MAOL "
+                 "yüz yüze eğitim öğrenci listesi de bu türle aktarılır; dosyadaki dolu bilgiler mevcut öğrenciye "
+                 "işlenir."),
     IceAktarmaTanimi("ders_atamalari", "Ders Dağılımı (Sınıf-Ders-Öğretmen)", [
         ("sinif", "Sınıf/Şube", ["sinif", "sube", "sinif sube", "sinifi"]),
         ("ders", "Ders Adı", ["ders", "ders adi", "dersin adi"]),
@@ -607,7 +698,7 @@ TANIMLAR: dict[str, IceAktarmaTanimi] = {t.tablo: t for t in [
         ("tarih", "Tarih", ["tarih", "devamsizlik tarihi", "gun tarihi", "devamsiz oldugu tarih"]),
         ("tur", "Tür (Özürsüz/Özürlü/Raporlu/İzinli)", ["tur", "devamsizlik turu", "ozur durumu", "durum"]),
         ("yer", "Yer (Okul/İşletme)", ["yer", "devamsizlik yeri"]),
-        ("gun", "Gün", ["gun", "gun sayisi", "devamsizlik gun", "suresi"]),
+        ("gun", "Gün", ["gun", "gun sayisi", "devamsizlik gun", "suresi", "sure", "devamsizlik suresi"]),
         ("ozursuz", "Özürsüz (toplam)", ["ozursuz", "ozursuz devamsizlik", "ozursuz gun", "toplam ozursuz"]),
         ("ozurlu", "Özürlü (toplam)", ["ozurlu", "ozurlu devamsizlik", "ozurlu gun", "toplam ozurlu"]),
         ("aciklama", "Açıklama", ["aciklama", "not"]),
@@ -667,7 +758,8 @@ TANIMLAR: dict[str, IceAktarmaTanimi] = {t.tablo: t for t in [
 
 
 _OGRENCI_ALANLARI = {a for a, _, _ in _OGRENCI} | {"dogum_tarihi", "cinsiyet", "statu", "bakmakla_yukumlu",
-                                                   "telefon", "iban", "adres", "alan", "dal"}
+                                                   "telefon", "iban", "adres", "alan", "dal", "baba_adi",
+                                                   "anne_adi", "dogum_yeri", "nufus_il", "nufus_ilce"}
 _YERLESTIRME_ISLETME_ALANLARI = {"vergi_no", "isletme_adres", "isletme_tel", "yetkili", "usta_ogretici",
                                  "usta_ogretici_tel", "personel_sayisi"}
 
@@ -814,7 +906,10 @@ def baglam_alanlari(tanim: IceAktarmaTanimi) -> dict[str, str]:
 def sanal_alanlar(tablo: Tablo, tanim: IceAktarmaTanimi, eslesme: dict[str, int]) -> dict[str, int]:
     """Sütunu olmayan ama belge bağlamından (başlık üstü/ara satırlar) gelen alanlar {alan: -1}."""
     anahtarlar = {k for b in satir_baglamlari(tablo).values() for k in b}
-    return {a: -1 for k, a in baglam_alanlari(tanim).items() if k in anahtarlar and a not in eslesme}
+    out = {a: -1 for k, a in baglam_alanlari(tanim).items() if k in anahtarlar and a not in eslesme}
+    if tanim.tablo in _GRUPLU_TURLER:
+        out.update({k: -1 for b in ogrenci_basliklari(tablo).values() for k in b if k not in eslesme})
+    return out
 
 
 def hazir_mi(tablo: Tablo, anahtar: str, eslesme: dict[str, int]) -> bool:
@@ -878,8 +973,11 @@ class Secenekler:
     guncelle: bool = True
     olustur: bool = True
     tarih: date | None = None
-    devamsizlik_yeri: str = "Okul"
+    devamsizlik_yeri: str = "Okul"  # Okul | İşletme | Otomatik (tarih sınıfın işletme gününe denk geliyorsa İşletme)
     donem: tuple[int, int] | None = None
+    ogrenci_statusu: str | None = None  # dosyada statü yoksa yeni/güncellenen öğrencilere yazılır
+    bas: date | None = None  # tarihli kayıtlarda (devamsızlık) bu aralığın dışı atlanır
+    bit: date | None = None
 
 
 @dataclass
@@ -1381,6 +1479,9 @@ class _Aktarici:
                 vals[k] = metin(d[k])
         if metin(d.get("veli_ad")):
             vals["veli_ad"] = tr_ad(d["veli_ad"])
+        for k in ("baba_adi", "anne_adi", "dogum_yeri", "nufus_il", "nufus_ilce"):
+            if metin(d.get(k)):
+                vals[k] = tr_ad(d[k])
         if metin(d.get("iban")):
             vals["iban"] = metin(d["iban"]).replace(" ", "").upper()
         c = norm(d.get("cinsiyet"))
@@ -1393,7 +1494,10 @@ class _Aktarici:
         st = norm(d.get("statu"))
         if st:
             vals["statu"] = ("Kalfa (MEM 12)" if "kalfa" in st else "Aday Çırak" if "aday" in st
-                             else "Çırak" if "cirak" in st else "Öğrenci")
+                             else "Çırak" if "cirak" in st
+                             else "Açık Lise" if "acik" in st or "maol" in st or "uzaktan" in st else "Öğrenci")
+        elif self.sec.ogrenci_statusu:
+            vals["statu"] = self.sec.ogrenci_statusu
         b = evet(d.get("bakmakla_yukumlu"))
         if b is not None:
             vals["bakmakla_yukumlu"] = b
@@ -1475,25 +1579,55 @@ class _Aktarici:
         durum, _ = self._kaydet("yerlestirmeler", vals, r["id"] if r else None)
         return durum, "; ".join(mesajlar)
 
+    def _isletme_gunu(self, ogr_id: int, t: date) -> bool:
+        r = self.db.q1("""SELECT s.isletme_gunleri FROM ogrenciler o JOIN siniflar s ON s.id = o.sinif_id
+                          WHERE o.id = ?""", (ogr_id,))
+        return bool(r) and t.isoweekday() in gunler_listesi(r["isletme_gunleri"])
+
+    def _okul_ici_sigortali(self, ogr_id: int, t: date) -> bool:
+        """Okulda alan eğitimi sigortası süren öğrencinin okul devamsızlığı da SGK'ya eksik gün bildirilir."""
+        ph = ", ".join("?" for _ in OKUL_ICI_TURLER)
+        return self.db.q1(f"""SELECT 1 FROM yerlestirmeler WHERE ogrenci_id = ? AND tur IN ({ph})
+                              AND baslangic IS NOT NULL AND baslangic <= ?
+                              AND (bitis IS NULL OR bitis = '' OR bitis >= ?)""",
+                          (ogr_id, *sorted(OKUL_ICI_TURLER), t.isoformat(), t.isoformat())) is not None
+
     def devamsizlik(self, d: dict) -> tuple[str, str]:
-        ogr_id = self.ogrenci_bul(d)
         y = norm(d.get("yer"))
-        yer = "İşletme" if "isletme" in y or "beceri" in y else "Okul" if "okul" in y else self.sec.devamsizlik_yeri
-        sgk = 1 if yer == "İşletme" else 0
-        aciklama = metin(d.get("aciklama"))
         t = tarih(d.get("tarih"))
+        if t and ((self.sec.bas and t < self.sec.bas) or (self.sec.bit and t > self.sec.bit)):
+            return "atlandi", "Seçilen tarih aralığının dışında"
+        try:
+            ogr_id = self.ogrenci_bul(d)
+        except ValueError as e:
+            return "atlandi", f"{e}; MesKoord'da kayıtlı olmayan öğrenci atlandı"
+        yer = "İşletme" if "isletme" in y or "beceri" in y else "Okul" if "okul" in y else self.sec.devamsizlik_yeri
+        if yer not in ("Okul", "İşletme"):
+            yer = "İşletme" if t and self._isletme_gunu(ogr_id, t) else "Okul"
+        sgk = 1 if yer == "İşletme" or (t and self._okul_ici_sigortali(ogr_id, t)) else 0
+        aciklama = metin(d.get("aciklama"))
         if t:
             tn = norm(d.get("tur"))
             tur = ("Raporlu" if "rapor" in tn else "İzinli" if "izin" in tn
                    else "Özürlü" if tn.startswith("ozurlu") or tn == "ozurlu" else "Özürsüz")
             g = norm(d.get("gun"))
             gun = 0.5 if "yarim" in g else (sayi(d.get("gun")) or 1.0)
-            vals = {"ogrenci_id": ogr_id, "tarih": t.isoformat(), "tur": tur, "yer": yer, "gun": gun,
-                    "sgk_eksik": sgk, "aciklama": aciklama}
-            r = self.db.q1("SELECT id FROM devamsizlik WHERE ogrenci_id = ? AND tarih = ? AND yer = ?",
-                           (ogr_id, t.isoformat(), yer))
-            durum, _ = self._kaydet("devamsizlik", vals, r["id"] if r else None)
-            return durum, ""
+            kalemler = [(tur, gun)]
+            if not tn and ("ozurlu" in d or "ozursuz" in d):  # e-Okul R060: Özürlü / Özürsüz ayrı sütunlarda
+                kalemler = [(k, v) for k, v in (("Özürlü", _devam_degeri(d.get("ozurlu"))),
+                                                ("Özürsüz", _devam_degeri(d.get("ozursuz")))) if v]
+                if not kalemler:
+                    return "atlandi", "Bu tarihte özürlü/özürsüz devamsızlık değeri yok"
+            durumlar = []
+            for tur, gun in kalemler:
+                vals = {"ogrenci_id": ogr_id, "tarih": t.isoformat(), "tur": tur, "yer": yer, "gun": gun,
+                        "sgk_eksik": sgk, "aciklama": aciklama}
+                ikili = len(kalemler) > 1
+                r = self.db.q1("SELECT id FROM devamsizlik WHERE ogrenci_id = ? AND tarih = ? AND yer = ?"
+                               + (" AND tur = ?" if ikili else ""), (ogr_id, t.isoformat(), yer, *([tur] if ikili else [])))
+                durumlar.append(self._kaydet("devamsizlik", vals, r["id"] if r else None)[0])
+            return ("eklendi" if "eklendi" in durumlar else durumlar[0]), \
+                ", ".join(f"{k} {v:g} gün" for k, v in kalemler) if len(kalemler) > 1 else ""
         t = self.sec.tarih or date.today()
         degerler = {"Özürsüz": sayi(d.get("ozursuz")), "Özürlü": sayi(d.get("ozurlu"))}
         if degerler["Özürsüz"] is None and degerler["Özürlü"] is None:
@@ -1769,6 +1903,10 @@ def kayit_satirlari(tablo: Tablo, tanim: IceAktarmaTanimi, bas: int, eslesme: di
     baslik_norm = {k: norm(rows[bas][j]) for k, j in eslesme.items() if j < len(rows[bas])}
     ust_baslik = [norm(h) for h in rows[bas - 1]] if bas > 0 else None
     kimlik_sutunu = any(k in eslesme for k in ("tc", "okul_no")) and "ad_soyad" in {a for a, _, _ in tanim.alanlar}
+    gruplu = baglam and tanim.tablo in _GRUPLU_TURLER
+    basliklar = ogrenci_basliklari(tablo) if gruplu else {}
+    kimlik_alanlari = ("tc", "okul_no", "ad", "soyad", "ad_soyad")
+    ogrenci = next((b for i, b in sorted(basliklar.items(), reverse=True) if i < bas), {}) if gruplu else {}
 
     def baglam_ekle(d: dict) -> dict:
         for bk, alan in esle.items():
@@ -1777,13 +1915,18 @@ def kayit_satirlari(tablo: Tablo, tanim: IceAktarmaTanimi, bas: int, eslesme: di
         return d
 
     for n, row in enumerate(rows[bas + 1:], 1):
+        d = {k: (row[j] if j < len(row) else None) for k, j in eslesme.items()}
+        tekrar = bool(baslik_norm) and all(norm(d.get(k)) == v for k, v in baslik_norm.items())
+        if gruplu and not tekrar and bas + n in basliklar:
+            ogrenci = dict(basliklar[bas + n])  # öğrenci grup başlığı: sonraki tarihler bu öğrencinin
+            gecerli.update(baglamlar.get(bas + n, {}))
+            continue
         if bas + n in baglamlar:
             gecerli.update(baglamlar[bas + n])  # ara başlık: sonraki satırların sınıfı/dönemi/işletmesi
             continue
-        d = {k: (row[j] if j < len(row) else None) for k, j in eslesme.items()}
         if not any(metin(v) for v in d.values()):
             continue
-        if all(norm(d.get(k)) == v for k, v in baslik_norm.items()):
+        if tekrar:
             continue  # sayfa başında tekrarlanan başlık
         if baglam:
             dolu = _dolu_hucreler(row)
@@ -1791,9 +1934,25 @@ def kayit_satirlari(tablo: Tablo, tanim: IceAktarmaTanimi, bas: int, eslesme: di
                 continue  # iki satırlı başlığın tekrarlanan üst satırı
             if dolu and re.match(r"(genel )?toplam|imza|onay", norm(dolu[0])) and len(dolu) <= 3:
                 continue
-            if kimlik_sutunu and len(dolu) == 1 and not any(metin(d.get(k)) for k in ("tc", "okul_no")):
+            if kimlik_sutunu and len(dolu) == 1 and not any(metin(d.get(k)) for k in ("tc", "okul_no")) \
+                    and not (gruplu and tarih(d.get("tarih"))):
                 continue  # tek hücreli alt bilgi (imza adı, unvan, açıklama)
+        if gruplu:
+            if any(metin(d.get(k)) for k in kimlik_alanlari):
+                ogrenci = {k: d[k] for k in (*kimlik_alanlari, "sinif") if metin(d.get(k))}
+            else:
+                d.update({k: v for k, v in ogrenci.items() if not metin(d.get(k))})  # gruplanmış satır
         yield n, row, baglam_ekle(d), baglam_ekle
+
+
+_ACIK_LISE = ("yuz yuze egitim", "acik ogretim", "acik lise", "maol")
+
+
+def acik_lise_listesi(tablo: Tablo, bas: int) -> bool:
+    """MAOL 'Yüz Yüze Eğitim Öğrenci Listesi' gibi açık öğretim listeleri (dosya adı veya başlık üstü)."""
+    ust = " ".join(metin(v) for row in tablo.satirlar[:max(0, bas)] for v in row)
+    s = norm(f"{Path(tablo.kaynak).stem} {tablo.ad} {ust}")
+    return any(k in s for k in _ACIK_LISE)
 
 
 def aktar(db, tablo: Tablo, anahtar: str, bas: int | None = None, eslesme: dict[str, int] | None = None,
@@ -1817,6 +1976,8 @@ def aktar(db, tablo: Tablo, anahtar: str, bas: int | None = None, eslesme: dict[
         raise ValueError(f"{tablo.etiket}: {tanim.etiket} için gerekli sütunlar bulunamadı. "
                          f"Gerekli: {zorunlu_metni(tanim)}")
     sec = sec or Secenekler()
+    if anahtar == "ogrenciler" and not sec.ogrenci_statusu and "statu" not in eslesme and acik_lise_listesi(tablo, bas):
+        sec = replace(sec, ogrenci_statusu="Açık Lise")
     sonuc = IceAktarmaSonucu(anahtar=anahtar, kaynak=tablo.etiket, deneme=deneme)
     ana = _Aktarici(db, sec, sonuc)
     isleyici = getattr(ana, tanim.isleyici)

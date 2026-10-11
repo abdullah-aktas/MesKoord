@@ -75,8 +75,8 @@ Bilgisayar laboratuvarına sessiz kurulum (bilişim sorumlusu için):
 
 ### Ekran düzeni
 
-- **Sol menü:** Ekranlar simgeli gruplar hâlinde sıralanır (Genel, Tanımlar, Ders Programı, İşletmelerde
-  Mesleki Eğitim, Personel, Evrak, Sistem).
+- **Sol menü:** Ekranlar simgeli gruplar hâlinde sıralanır (Genel, Tanımlar, Ders Programı, Sınav Planlama,
+  İşletmelerde Mesleki Eğitim, Personel, Evrak, Sistem).
   - Grup adına tıklayınca grup açılır ya da kapanır. Bir grup açılınca öteki gruplar kendiliğinden kapanır;
     menü küçük ekranda da kaydırmadan sığar. Açık ekranın grubunun simgesi turkuaz görünür.
   - **Menüde ara (Ctrl+K):** menünün üstündeki kutuya ekran adından bir parça yazın ("ücret", "sgk",
@@ -445,6 +445,43 @@ Aktarım sırasında kendiliğinden yapılanlar:
   ilgili türe aktarılır (bkz. Ders Dağılımı ve Atölye Yerleşimi > "Belgeden Yükle").
 - Aylık prim hizmet listesi ve hizmet dökümü gibi SGK listeleri aktarılmaz, karşılaştırma için SGK Sigorta
   İşlemleri > Liste Karşılaştırma'ya yönlendirilir.
+- Öğrenci listelerinde baba/anne adı, doğum yeri, nüfusa kayıtlı il/ilçe ve doğum tarihi sütunları tanınır
+  (e-Okul öğrenci künye ve nüfus bilgileri raporları).
+- Dosya adında ya da başlığında "Yüz Yüze Eğitim", "Açık Lise", "Açık Öğretim" veya "MAOL" geçen listelerdeki
+  öğrencilerin statüsü kendiliğinden **Açık Lise** yapılır. Öğrenci listelerinde "Statü" seçeneğiyle dosyada
+  statü sütunu yoksa yeni ve güncellenen öğrencilere yazılacak statüyü de seçebilirsiniz.
+
+**Devamsızlık aktarımında ek seçenekler:**
+
+- **"Yalnızca şu tarihler arası:"**: e-Okul'dan bütün yılın devamsızlığını aldığınızda yalnızca seçilen
+  aralıktaki (ör. bu ayki) günler aktarılır; dışındakiler "atlandı" olarak raporlanır.
+- **Yer: "Otomatik"**: Devamsızlık günü öğrencinin sınıfının işletme gününe denk geliyorsa "İşletme", değilse
+  "Okul" kaydedilir.
+- İşletmedeki devamsızlıklar ve okulda alan eğitimi sigortası süren öğrencilerin okul devamsızlıkları
+  SGK'ya eksik gün olarak işaretlenir.
+
+### e-Okul Öğrenci Eşitleme (Nakil)
+
+e-Okul'daki güncel öğrenci listesini okul kayıtlarıyla karşılaştırır; nakil gelen ve giden öğrencileri tek
+seferde işler.
+
+1. e-Okul'dan sınıf listelerini (ör. OOK08001R020 sınıf listesi; Excel, PDF veya Word) alın.
+2. **"Liste Dosyalarını Seç..."** ile seçin ya da ekrana sürükleyin. Birden çok dosya seçilebilir.
+3. Listede bulunan sınıflar karşılaştırılır (listede sınıf bilgisi yoksa liste tüm okulun listesi sayılır):
+   - **Yeni** (yeşil): listede olup okulda olmayan — nakil gelen ya da yeni kayıt.
+   - **Listede yok** (kırmızı): okulda aktif olup listede olmayan — nakil giden, kaydı silinen.
+   - **Yeniden kayıt**: okulda pasif olup listede yer alan.
+   - **Sınıf değişmiş** ve **Bilgi farkı** (sarı): şube değiştiren ya da T.C., okul no veya adı farklı olan.
+4. **"Göster:"** ile türe göre süzün. Satır seçerseniz yalnızca seçilenler, seçmezseniz görünen tüm satırlar
+   uygulanır.
+5. **"Ayrılış tarihi"** ve **"Ayrılanların açık sigortasını kapat"**: Listede olmayan öğrenciler pasif yapılır;
+   işaretliyse açık yerleştirmeleri bu tarihle "Nakil" nedeniyle kapatılır ve SGK > İşe Giriş / İşten Ayrılış
+   ekranında işten ayrılış bildirimi bekleyenlere düşer.
+6. **"Uygula"**. Yeni öğrencilerin statüsünü **"Yeni öğrencilerin statüsü"** ile seçebilirsiniz.
+
+Eşleştirme Veri Aktarımı ile aynıdır: önce T.C., sonra okul no ve ad, sonra ad soyad. Listedeki T.C. okulda
+başka bir öğrenciye kayıtlıysa yanlış eşleştirme yapılmaz; sağdaki notlarda uyarı çıkar ve kayıt
+değiştirilmez. Sonuçları **"Excel'e Aktar"** ile saklayabilirsiniz.
 
 **Boş şablon:** Elinizde hazır liste yoksa "Seçili Tür İçin Boş Şablon" ya da "Tüm Türler İçin Şablon" ile
 doğru başlıklı boş Excel dosyası alın, doldurup geri sürükleyin.
@@ -519,7 +556,10 @@ yapın. Birden çok belge birlikte üretildiyse son üretilenler işaretli gelir
 Alanlar:
 
 - Okul No, T.C. Kimlik No, Adı \*, Soyadı \*, Sınıf.
-- Statü \*: Öğrenci / Aday Çırak / Çırak / Kalfa (MEM 12).
+- Statü \*: Öğrenci / Aday Çırak / Çırak / Kalfa (MEM 12) / Açık Lise (MAOL ve açık öğretim öğrencileri).
+- Nüfus bilgileri: Baba Adı, Anne Adı, Doğum Yeri, Nüfusa Kayıtlı İl ve İlçe. e-Okul künye listesinden
+  (öğrenci künye / nüfus bilgileri raporu) **Veri Aktarımı** ile toplu yüklenir; SGK bildirgelerinde ve
+  sözleşmelerde kullanılır.
 - **"Bakmakla yükümlü olunan (GSS anne/babadan)":** İşaretliyse SGK primi %1'dir (belge 7/49).
   İşaretsizse %6'dır (belge 42/50).
 - Doğum Tarihi, Cinsiyet, Telefon, Veli Adı Soyadı, Veli Telefon, IBAN, Adres.
@@ -593,6 +633,9 @@ Alanlar:
 - **Okul Günleri:** Ders programı yalnızca bu günlere yerleşir.
 - **İşletme Günleri:** Koordinatör ziyaretleri bu günlere planlanır.
 - Rehber Öğretmen.
+- **Ders Konmayacak Saatler:** "Tablodan seç..." ile sınıfa ders yerleştirilmeyecek saatleri işaretleyin
+  (ör. cuma son iki saat, her günün 1. saati). Elle yazımda `5-7` cuma 7. saat, `5-*` cuma bütün gün,
+  `*-1` her günün 1. saati demektir. Otomatik yerleştirme bu saatlere ders koymaz.
 
 MTAL'de işletmelerde mesleki eğitim haftada 3 gün işletme + 2 gün okul (ya da 2 gün işletme + 3 gün okul)
 şeklinde yapılır (md.134); MEM için genellikle 1 gün okul + 4 gün işletme tanımlanır. Okul ve işletme günleri
@@ -744,6 +787,206 @@ Veri Denetimi, ders dağılımında çerçeve programdaki zorunlu dersi eksik ya
 sınıfları ve çizelgesi belirlenemeyen (alanı/dalı eksik ya da tanınmayan) sınıfları listeler. Asistan'a
 "zorunlu dersleri aç" yazarak bütün sınıflara zorunlu dersleri açabilirsiniz.
 
+### Program Araçları (Kısıt, Sürüm, Devir, Yük)
+
+Ders programını hazırlarken ve yıl içinde değiştirirken kullanılan yardımcı araçlar. Altı sekmesi vardır.
+
+**"Kısıtlar" sekmesi**
+
+- **"Öğle arası şu saatten sonra:"** Örneğin 4 seçilirse 4. ve 5. saatler arasında öğle arası verilir; iki ve
+  daha uzun blok dersler öğle arasında bölünmez. "Yok" seçilirse kural uygulanmaz.
+- **"Bir öğretmenin aynı sınıftaki farklı dersleri aynı güne konmasın (rehberlik dersi hariç)".**
+- **"Kaydet"** ile saklanır; Ayarlar > Mevzuat Parametreleri > Ders Programı'ndan da değiştirilebilir.
+- **Aynı güne gelmeyecek ders grupları:** "Yeni Grup" ile bir ad verip dersleri işaretleyin (ör. Matematik,
+  Fizik, Kimya). Bir sınıfta gruptaki derslerden ikisi aynı güne konmaz. Grup "Etkin" işareti kaldırılarak
+  geçici olarak kapatılabilir.
+- **"Kural Denetimi":** Mevcut programda sınıfın ders konmayacak saatine, öğle arasına ya da aynı gün
+  kurallarına uymayan yerleri listeler.
+
+Otomatik yerleştirme bu kurallara ve Sınıflar / Şubeler'deki **Ders Konmayacak Saatler**'e uyar. Kurallara
+uyularak bütün dersler yerleşemezse aynı gün kuralı gerektiği kadar gevşetilir ve sonuçta not düşülür.
+
+**"Toplu Çakma" sekmesi**
+
+Bir dersi (ör. Rehberlik ve Yönlendirme) seçilen sınıfların aynı gün ve saatine kilitli olarak yazar. Ders,
+gün ve saat seçin; dersin okutulduğu sınıflar işaretli gelir. **"Çak"** dendiğinde o saatteki kilitsiz dersler
+kaldırılır (**"Otomatik Yerleştir"** onları yeniden yerleştirir). O saatte kilitli dersi olan ya da o gün okulu
+olmayan sınıflar atlanır ve nedeni bildirilir.
+
+**"Program Sürümleri" sekmesi**
+
+- **"Şimdiki Programı Kaydet":** Programın o anki hâli (kilitli hücreler dahil) adı ve açıklamasıyla saklanır.
+- **"Seçili Sürümü Yükle":** Mevcut program silinip sürüm yüklenir; yüklemeden önce mevcut program
+  "Otomatik: ..." adıyla ayrıca saklanır. Ders dağılımı sonradan değiştiyse hücreler aynı sınıf-ders atamasına
+  eşlenir; karşılığı kalmayan saatler atlanır ve bildirilir.
+
+**"Sınıf Öğretmenliği" sekmesi**
+
+Sınıfların rehber öğretmenlerini, mevcutlarını ve sınıfa giren öğretmen sayısını gösterir (rehber öğretmeni
+olmayanlar sarı). **"Boş Olanlara Ata"** rehber öğretmeni olmayan sınıflara, sınıfta Rehberlik dersine giren,
+yoksa en çok saati olan ve başka sınıfın rehberi olmayan öğretmeni atar. **"Tümünü Yeniden Ata"** bütün
+sınıflar için aynı işlemi yapar.
+
+**"Ders Devri" sekmesi**
+
+Ayrılan (tayin, emeklilik, görevlendirme) öğretmenin derslerini tek seferde devreder:
+
+1. **"Ayrılan öğretmen"** seçilince dersleri ve aynı branştaki öğretmenler haftalık yükleriyle görünür.
+2. **"Devralacak"** öğretmeni seçin ya da "(Aynı branştakilere paylaştır)" bırakın. Paylaştırmada her ders,
+   programdaki saatlerinde boş olan ve en az yüklü öğretmene verilir.
+3. İsterseniz **"Koordinatörlük görevlerini de devret"** (devralacak öğretmen seçilmelidir) ve **"Ayrılan
+   öğretmeni pasif yap"**.
+4. **"Devret"**. Programdaki ders saatleri yerinde kalır; ayrılanın rehber öğretmeni olduğu sınıflar devralana
+   geçer.
+
+**"Yük Analizi" sekmesi**
+
+Ders dağılımına göre öğretmen başına haftalık ders saati, koordinatörlük saati, aylık karşılık, ek ders ve
+karşılık eksiği (sarı); branş özeti (öğretmen sayısı, ortalama, en az/en çok yük, toplam ek ders) ve öğretmeni
+atanmamış ya da programa tam yerleşmemiş dersler. Birleştirilmiş dersler bir kez sayılır. **"Excel'e Aktar"**
+üç sayfayı birlikte kaydeder.
+
+### Sınav Planlama ve Görevlendirme
+
+Sorumluluk, beceri, ortak ve telafi sınavlarının takvimini hazırlar; komisyon ve gözcüleri görevlendirir,
+öğrencileri salon ve sıralara dağıtır, bütün sınav belgelerini üretir. Her şey bir **sınav dönemine** bağlıdır:
+sağ üstteki **"Yeni Dönem"** ile dönemi açın (ad, tür, tarihler, öğrencinin günde en çok sınavı, öğretmenin günde
+en çok görevi, komisyon üye sayısı, bir gözcüye düşen öğrenci sayısı). **"Düzenle"** ve **"Sil"** seçili dönem
+içindir; dönem silinince seansları, sınavları ve görevlendirmeleri de silinir.
+
+Dönem formundaki diğer ayarlar:
+
+- **"Salonda oturma düzeni"**: öğrenciler salonlara sınıf ve ada göre, okul numarasına göre ya da karışık oturur.
+- **"Uygulama / Sözlü sınavları ortak başlama saati"**: doluysa takvimde ve belgelerde bu sınavların saati olarak
+  seansın saati yerine bu saat yazılır (ör. bütün uygulama sınavları 13:30'da başlar).
+- **"Komisyon görevi / Gözcülük ek ders saati"** ve **"Yıllık ücretli görev sınırı"**: Sınav Görev Ücret
+  Çizelgesinde her görevin kaç ek ders saati sayılacağı ve bir öğretmenin bir eğitim yılında en çok kaç ücretli
+  sınav görevi alabileceği (0 = sınırsız). Aynı eğitim yılındaki önceki dönemlerin görevleri de sayılır.
+- **"Belge başlığı (Başlık ve Onay Bilgisi)"**, **"Düzenleyen"** ve **"Onaylayan"** (unvanlarıyla): belgelerin
+  başlığı ve imza blokları. Başlık boşsa "<eğitim yılı> Eğitim-Öğretim Yılı <dönem adı>", onaylayan boşsa kurum
+  bilgilerindeki okul müdürü yazılır.
+
+Önerilen sıra: seanslar → sınavlar ve öğrenciler → öğretmenler → salonlar → planlama → çıktılar.
+
+**"Seans Çizelgesi" sekmesi**
+
+1. Başlangıç / bitiş tarihini, **"Hafta sonu dahil"**, **"Tatil günlerini atla"** seçeneklerini ve
+   **"Sınav yapılmayacak günler"**i (virgülle) girin.
+2. **"Oturum saatleri"** tablosunda her oturumun başlangıç ve bitiş saatini düzenleyin (**"Oturum Ekle"** /
+   **"Oturum Sil"**), sonra **"Seansları Oluştur"**.
+3. Çizelgede işareti kaldırılan seansa sınav konmaz (ör. öğle arası, toplantı saati). **"Seçili Günün Düzenini
+   Tüm Günlere Uygula"** bir günün açık/kapalı düzenini bütün günlere kopyalar; **"Tümünü Aç"** hepsini açar.
+4. Günden güne farklı saat gerekiyorsa hücreleri seçip **"Seçili Seansların Saati..."** ile yalnız o seansların
+   saatini değiştirin (sütun başlığından farklı saatler hücrede yazılır).
+5. Planlamadan sonra her hücrede o seanstaki sınav ve öğrenci sayısı görünür (ör. "3 sınav / 85 öğr.").
+
+**"Sınavlar ve Öğrenciler" sekmesi**
+
+- **"e-Okul'dan Aktar..."**: e-Okul "Sorumluluk Sınavına Girecek Öğrenciler" (OOK12001R012) listesini ya da
+  öğrenci ve ders sütunları olan herhangi bir Excel / PDF / Word tablosunu okur; her ders ve seviye için sınav
+  açar, öğrencileri ekler. Aktarım tekrarlanabilir (aynı öğrenci ikinci kez eklenmez). **"Bulunamayan öğrencileri
+  oluştur"** işaretliyse okulda kaydı olmayan öğrenciler (gerekirse sınıflarıyla) oluşturulur.
+  - **"Liste türü"**: Sorumluluk, OYS (ortalama yükseltme) ya da Tek Ders. Öğrencinin sınav türü kaydedilir ve
+    giriş belgesinde, yoklama listesinde yazılır. **"OYS ayrı sınav"** işaretliyse OYS öğrencileri sorumluluk
+    sınavından ayrı ("OYS" grubunda) sınava girer. Tek Ders seçilince yalnız tek dersten sorumlu 12. sınıf
+    öğrencileri alınır; diğerleri elenir ve sonuçta sayısı bildirilir.
+  - **"Grup kodu"** (Sınav Grup Kodu): bu dosyadan gelen bütün sınavların grubuna eklenir (ör. EML, ATL, TL
+    dosyalarını ayrı ayrı aktarmak için).
+- **"Yeni Sınav"**, **"Düzenle"** (çift tıklama), **"Sil"**: ders, seviye, grup (aynı dersin ayrı sınavları için
+  A, B…), sınav şekli (Yazılı, Uygulama, Sözlü, Yazılı ve Uygulama), süre, seans ve **"Çakılı"** bilgisi. Ayrıca:
+  - **"Komisyon üye sayısı"** ve **"Gözcü sayısı"**: bu sınava özel sayı ("Dönem ayarı" = dönemdeki sayı).
+  - **"Bağlı olduğu sınav"**: sözlü sınav, bağlı olduğu yazılı sınavdan sonraki sınav gününün ilk açık seansına
+    konur.
+  - **"Ücretsiz"**: sınavın görevleri ek ders ücretine girmez.
+- **"Toplu Düzenle..."**: seçili sınavların şekil, süre, komisyon / gözcü sayısı, çakılı ve ücretsiz bilgisini
+  birlikte değiştirir; yalnız işaretlenen alanlar değişir.
+- **"Salonlar..."**: seçili sınava salon ayırır. Salon dağıtımında bu sınavın öğrencileri önce bu salonlara oturur
+  ve o seansta bu salonlara başka sınavın öğrencisi konmaz. Uygulama / sözlü sınavlara da atölye ayrılabilir.
+- **"Birleştir"**: seçili sınavları tek sınavda toplar (öğrenciler ve sınav türleri birleşir). Grupları farklıysa
+  birleşik grup kodu oluşur (ör. "EML-ATL-TL"); birleştirilen sınavlar açıklamaya yazılır.
+- Alttaki listede seçili sınavın öğrencileri, türü, salonu, sıra numarası ve katılımı görünür. **"Öğrenci
+  Ekle..."**, **"Seçilenleri Çıkar"**, **"Kapalı Seanslar..."** (öğrencinin sınava giremeyeceği seanslar),
+  **"Salona Ata..."** (öğrenciyi elle salona alır; otomatik salon dağıtımı bu öğrencinin yerini değiştirmez) ve
+  sınav sonrası yoklama için **"Girdi"** / **"Girmedi"** / **"Yoklamayı Sil"** buradadır. Yoklama girilince sınav
+  tutanağına giren / girmeyen sayıları ve Sınava Girmeyen Öğrenci Tutanağına öğrencilerin adları yazılır.
+  Öğrencisi olmayan sınavlar sarıdır.
+
+**"Öğretmenler" sekmesi**
+
+Dönem açılınca etkin öğretmenler listeye gelir; müdür ve müdür yardımcıları varsayılan olarak görev almaz.
+**"Görev Alır"** / **"Görev Almaz"**, **"Günlük Sınır..."** (öğretmene özel günlük görev sınırı) ve **"Kapalı
+Seanslar..."** (öğretmenin görev alamayacağı seanslar) seçili öğretmenlere uygulanır. Öğretmenin okul nöbet günü
+ve ders programında tamamen müsait olmadığı günlerin seansları dönem açılırken kapalı gelir; sonradan değişenler
+için **"Nöbet / Müsaitlikten Doldur"** (seçili yoksa bütün öğretmenler) kullanılır. **"Önceki Görev..."** aynı
+eğitim yılında bu dönemden önce alınan sınav görevi sayısıdır (yıllık ücretli görev sınırı için).
+
+Sağdaki sekmeler:
+
+- **"Ders Kuralları"**: iki ders ve kural türü seçilip **"Kural Ekle"**. "Ortak öğrencisi varsa aynı güne
+  gelmesin", "Kesinlikle aynı güne gelmesin" ya da "Aynı seansta yapılsın" (aynı seviyedeki sınavlar).
+- **"Gün Kuralları"**: **"Gün Kuralı Ekle..."** ile bir dersin ya da sınıf seviyesinin sınavları yalnız seçilen
+  günlerde yapılır. "Öğrencinin sınıf seviyesi" seçilirse ör. 12. sınıf öğrencilerinin girdiği bütün sınavlar o
+  günlere konur.
+- **"Nöbetçi Müdür Yrd."**: her sınav günü için nöbetçi müdür yardımcısı (çift tıklayarak seçilir). Takvimde ve
+  Öğretmen İmza Cetvelinde yazılır, Sınav Kâğıdı Teslim Tutanağında teslim alan olur.
+
+**"Salonlar" sekmesi**
+
+Salon adı, kapasite, doldurma sırası ve kullanılır bilgisi. Yazılı sınavların öğrencileri küçük sıradaki salondan
+başlayarak yerleştirilir. Salonlar bütün sınav dönemlerinde ortaktır. **"Atölye / Sınıflardan Al..."** atölye ve
+laboratuvarları ve/veya sınıfları (kapasitesi öğrenci sayısı kadar) salon olarak ekler; aynı adlı salon eklenmez.
+Uygulama ve sözlü sınavlara (salon ayrılmadıkça) salon ve gözcü verilmez; yazılı sınavda her salona bir gözcü, salon
+yerleşimi yoksa dönemde belirtilen öğrenci sayısına göre gözcü düşer. Sınava özel gözcü sayısı verilmişse o
+geçerlidir.
+
+**"Planlama" sekmesi**
+
+- **"Hepsini Yap"**: sınavları yerleştirir, görevlileri atar ve öğrencileri salonlara dağıtır. Adımlar ayrı ayrı
+  da çalıştırılabilir: **"Sınavları Yerleştir"**, **"Görevlileri Ata"**, **"Salonlara Yerleştir"**.
+- Yerleştirmede bir öğrencinin aynı seansta iki sınavı olmaz; günlük sınav sınırı, uygulamalı sınav günü
+  (uygulamalı sınavı olan öğrencinin o gün başka sınavı olmaz), ders ve gün kuralları, bağlı sözlü sınavlar,
+  kapalı seanslar, görev alabilecek öğretmen sayısı ve salon kapasitesi gözetilir. 12. sınıf öğrencilerinin
+  sınavları öne alınır, öğrencinin sınavları günlere yayılır (aynı gün iki sınav arasında boş seans bırakılmamaya
+  çalışılır), seanslar dengelenir. **"Süre sınırı"** aramanın en uzun süresidir. Yerleşemeyen sınavlar kırmızı
+  satırla ve nedeniyle bildirilir.
+- **"Yalnız yerleşmemişleri yerleştir"** işaretliyse seansa yerleşmiş sınavlar yerinde kalır; yalnız sonradan
+  eklenen ya da yerleşemeyen sınavlar boşluklara konur.
+- **"En Az Gün"**: bütün sınavların sığdığı en az sınav günü sayısını hesaplar (dönemin ilk günlerinden başlayarak);
+  planı değiştirmez. Gerekirse son günlerin seanslarını kapatıp planı yeniden yapabilirsiniz.
+- Komisyona önce dersi okutan, sonra aynı alandan, sonra branşı uyan öğretmenler alınır (ilki başkan); gözcüler
+  tercihen dersle ilgisi olmayan öğretmenlerden seçilir. Öğretmen kapalı seansında, aynı seansta ikinci kez ve
+  günlük sınırın üstünde görev almaz; görevler en az yüklü öğretmene verilir, aynı gün görevleri mümkünse ardışık
+  seanslara toplanır, yıllık görev sınırını aşan öğretmenler son sıraya düşer.
+- **"Görevliler..."**: seçili sınavın komisyon ve gözcülerini elle düzenler. **"Başkan / Üye / Gözcü Ekle..."**
+  (uygun öğretmenler üstte, durumları ve dersle ilişkileriyle), **"Değiştir..."** (görevi başka öğretmene verir),
+  **"Yer Değiştir..."** (aynı gün başka bir görevle öğretmenleri değiştirir), **"Sil"**, **"Kilitle"** / **"Kilidi
+  Aç"**, sınav günü **"Geldi"** / **"Gelmedi"** ve **"Ücretsiz"** / **"Ücretli"**. Elle yapılan görevler kilitlenir
+  (otomatik atama değiştirmez); kapalı seans, aynı seansta ikinci görev, günlük / yıllık sınır ve branş dışı
+  komisyon gibi durumlar uyarı olarak gösterilir.
+- Salonlarda bir salona birden çok sınav düşerse yan yana oturanlar farklı sınavlardan olur. Elle salona alınan
+  öğrenciler ve sınava ayrılmış salonlar önce yerleşir; oturma sırası dönemdeki oturma düzenine göredir.
+- **"Denetle"** planı bütün kurallara göre denetler (sarı satırlar). **"Seansını Değiştir..."** (çift tıklama)
+  sınavı elle başka seansa alır ve çakılı yapar; **"Çakılı / Serbest"** otomatik planlamanın o sınavın seansını
+  değiştirip değiştiremeyeceğini belirler (mavi = çakılı). **"Planı Temizle"** çakılı olmayan yerleşimleri siler.
+
+**"Çıktılar" sekmesi**
+
+- **Sınav Takvimi (Excel)**: takvim, öğrenci sınavları (türüyle), **Seans Özeti** (her seansın sınav ve öğrenci
+  sayısı, dersleri, salonları) ve her salon için oturma çizelgesi sayfası.
+- **Sınav Takvimi / İlan (Word)**: günlere göre takvim, nöbetçi müdür yardımcısı, düzenleyen ve onaylayan imzası.
+- **Öğrenci Sınav Giriş Belgeleri**, **Öğretmen Görevlendirme Yazıları**, **Öğretmen Görev Çizelgesi (Excel)**.
+- **Sınav Görev Ücret Çizelgesi (Excel)**: öğretmen başına komisyon / gözcülük, gelmediği, ücretsiz ve yıllık
+  sınır dışı görevler, ücretli görevler ve ek ders saati; ayrıntı sayfasında her görevin ücret durumu.
+- **Sınav Onayı**: sınav programı, komisyon ve gözcülerle "Müdürlük Makamına" yazısı ve "OLUR" imza bloğu.
+- **Öğretmen İmza Cetveli**: her sınav günü için görevli öğretmenlerin imza listesi (nöbetçi müdür yardımcısı
+  onayıyla).
+- **Sınav Yoklama / İmza Listeleri**, **Sınav Tutanakları**, **Sınava Girmeyen Öğrenci Tutanakları**, **Sınav
+  Kâğıdı Teslim Tutanakları**, **Soru ve Cevap Anahtarı Tutanakları** ve **Soru Zarfı Kapakları**. Yoklama
+  girilmemişse sayı ve ad yerleri elle doldurulacak şekilde boş bırakılır.
+
+**"Tüm Çıktıları Üret"** hepsini dönemin klasörüne kaydeder (`Ciktilar\Sınav Planlama\<dönem adı>`);
+**"Klasörü Aç"** bu klasörü açar.
+
 ### Yerleştirme ve Sözleşmeler
 
 Öğrencilerin işletmelere yerleştirilmesi. Filtre: "İşletme:".
@@ -841,6 +1084,40 @@ Görevleri elle eklemek ya da değiştirmek içindir. Alanlar:
    birimi/donanım ve uyum sorunu. (Daha önce kurulmuş bir bilgisayarda yeni maddeler için _Belge Üretimi >
    "Şablonları Varsayılana Döndür"_ yapın; kendi düzenlediğiniz şablonlar varsa önce yedekleyin.)
 
+### Koordinatörlük Formları ve Teslim Takibi
+
+Koordinatör öğretmenlerin dolduracağı formları barkodlu olarak üretir ve teslim edilenleri barkod okuyucuyla
+izler.
+
+**"Barkodlu Formlar" sekmesi**
+
+1. **"Tarih aralığı"**, form türleri ve isterseniz öğretmeni seçin. Görev günleri Koordinatörlük > Görev
+   Dağılımı'ndan alınır; tatil günleri ve görevin başlangıç/bitiş tarihleri dikkate alınır.
+   - **Günlük Rehberlik Görev Formu:** her görev günü ve işletme için bir form (işletme bilgileri, o gün
+     işletmedeki öğrenciler, devam/görüş sütunları, tespit ve öneriler, imzalar).
+   - **Aylık Rehberlik Raporu:** öğretmen ve işletme başına ayda bir (öğrencilerin işletmedeki devamsızlığı
+     dolu gelir).
+   - **Koordinatör Öğretmen Aylık Görev Formu:** öğretmen başına ayda bir; görev günleri, işletmeler ve saatler
+     listelenir (ek ders ödemesine esas).
+2. **"Word Formlarını Üret"**: seçili (seçim yoksa tüm) formlar her öğretmen için tek Word dosyasında, her form
+   ayrı sayfada üretilir (`Ciktilar\Koordinatörlük Formları`). Formlar teslim takibine eklenir.
+3. **"Yazdırmadan Takibe Ekle"**: formları başka yerde hazırlıyorsanız yalnızca takip listesine ekler.
+
+Her formun sağ üst köşesinde 20 haneli bir barkod (Code 128) ve numarası bulunur.
+
+**"Teslim Takibi" sekmesi**
+
+- **"Barkod:"** kutusu açılışta seçili gelir. Doldurulan formun barkodunu USB barkod okuyucuyla okutun
+  (ya da numarayı yazıp Enter'a basın). Form "Teslim alındı" olur; günlük formda ilgili ziyaret
+  Koordinatörlük > Ziyaret Planı'nda "Yapıldı" işaretlenir. Aynı form ikinci kez okutulursa uyarı verilir.
+- Listede her formun durumu görünür: **Bekliyor**, **Gecikti** (kırmızı) ya da **Teslim alındı** (yeşil;
+  süresinden sonra geldiyse "gecikmeli"). Teslim süresi günlük formda görev gününden, aylık formlarda ay
+  sonundan itibaren Ayarlar > Koordinatörlük > "Günlük rehberlik görev formunun teslim süresi" kadardır
+  (varsayılan 5 gün).
+- Süzgeçler: tarih aralığı, form türü, öğretmen, "Yalnızca teslim edilmeyenler".
+- Sağdaki özet her öğretmenin form, teslim, bekleyen ve geciken sayısını verir.
+- **"Seçilenleri Teslim Al"** (barkodsuz elle işaretleme), **"Teslimi Geri Al"**, **"Excel'e Aktar"**.
+
 ### Komisyon ve İzleme İşleri
 
 Koordinatör müdür yardımcısının Ortaöğretim Kurumları Yönetmeliğinden gelen komisyon ve izleme işleri.
@@ -881,7 +1158,7 @@ onayına sunulacak programı hazırlar.
 
 ### SGK Sigorta İşlemleri
 
-Dört sekmesi vardır.
+Sekiz sekmesi vardır.
 
 **"İşe Giriş / İşten Ayrılış" sekmesi**
 
@@ -950,6 +1227,9 @@ dökümünü okulun kayıtlarıyla karşılaştırır.
    ne yapılacağı yazar.
 4. Okul kaydı yanlışsa satırları seçip **"Seçili Düzeltmeleri Uygula"**'ya basın (çift tık da olur); SGK
    tarafı yanlışsa öneriye göre e-Bildirge'de düzeltin. **"Excel'e Aktar"** farkları dosyaya yazar.
+5. SGK'da işe girişi görünüp okulda yerleştirmesi olmayan öğrenciler için düzeltme, SGK'daki giriş (ve varsa
+   çıkış) tarihleriyle yerleştirme (sigorta) kaydı oluşturur. Tür belge türünden (49/50 okulda alan eğitimi),
+   yoksa sınıftan belirlenir; giriş/çıkış "bildirildi" işaretli açılır. Çakışan kaydı olan öğrencide yapılmaz.
 
 Veri Aktarımı ya da Toplu Veri Girişi'ne yüklenen SGK hizmet listeleri de bu sekmeye yönlendirilir.
 
@@ -974,6 +1254,35 @@ verildiğini kaydetme ya da "bakmakla yükümlü" işaretini kaldırma gibi düz
 Ceza ve indirim oranları Ayarlar > Mevzuat Parametreleri'ndeki SGK parametrelerinden okunur. Kritik riskler
 Veri Denetimi'nde de görünür; Asistan'a "sgk ceza riskleri" yazarak özetini
 alabilirsiniz.
+
+**"Toplu Giriş Tarihi" sekmesi**
+
+Sigortası (açık yerleştirmesi) olmayan aktif öğrencileri listeler: nakil gelenler, yeni kayıtlar, dönem
+başında yeniden başlayanlar. Sınıf ve giriş tarihini seçin; tür "otomatik" bırakılırsa işletmeye giden
+sınıflarda (12. sınıf, MEM, 11. sınıfta işletmeye başlayan program) "İşletmede Mesleki Eğitim" (MEM çırağında
+"Çıraklık"), diğerlerinde "Okulda Alan Eğitimi" açılır. **"Giriş Tarihini İşle"** seçili (seçim yoksa tüm)
+öğrencilere tek tarihle sigorta başlangıcı açar; açılan kayıtlar "İşe Giriş / İşten Ayrılış" sekmesinde
+bildirim bekleyenlere düşer. Önceki (bitmiş) kaydı olanlarda o kayıt bilgi olarak gösterilir.
+
+**"Toplu Çıkış Tarihi" sekmesi**
+
+Açık yerleştirmeleri listeler ("Yalnızca bitiş tarihi girilmemişler" işaretliyken bitiş tarihi boş olanlar).
+Çıkış tarihi ve nedeni seçip **"Çıkış Tarihini İşle"**'ye basın: dönem sonu için "Süre bitti (dönem sonu)",
+mezuniyet, nakil, kayıt silme vb. Fesih sayılan nedenlerde durum "Feshedildi", diğerlerinde "Sona Erdi" olur.
+Başlangıcından önceki bir tarih verilen kayıtlar atlanır ve bildirilir.
+
+**"Liste Dışı Kalanlar" sekmesi**
+
+Seçilen ayın aylık prim hizmet listesine girmeyen aktif öğrencileri ve nedenini gösterir: yerleştirme kaydı
+yok, sigorta başlangıç tarihi girilmemiş, sigorta dönemden sonra başlıyor, sigorta sona ermiş. Listede olup
+belgede sorun çıkaracaklar "Uyarı" olarak eklenir: pasif öğrencinin sürmekte olan sigortası, boş ya da geçersiz
+T.C., prim günü 0 olanlar. Belgeyi vermeden önce kontrol edin.
+
+**"Bilgi Kontrolü" sekmesi**
+
+SGK bildirgeleri ve ücret ödemesi için eksik ya da hatalı öğrenci bilgilerini listeler: T.C. kimlik no (yok /
+geçersiz), doğum tarihi, cinsiyet, sınıf, işletmedekilerde IBAN (yok / geçersiz), telefon. "Yalnızca sigortalı
+öğrenciler" işareti kaldırılırsa bütün aktif öğrenciler denetlenir. Satıra çift tıklayınca öğrenci formu açılır.
 
 ### Öğrenci Ücreti ve Devlet Katkısı
 

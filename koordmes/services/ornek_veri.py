@@ -29,7 +29,9 @@ def iban_uret(rng: random.Random) -> str:
 def yukle(db, programi_coz: bool = True, seed: int = 42) -> None:
     rng = random.Random(seed)
     c = db.conn
-    for t in ["program_hucreleri", "ders_atamalari", "koordinator_gorevleri", "ziyaretler", "devamsizlik",
+    for t in ["sinav_salon_atamalari", "sinav_gun_kurallari", "sinav_nobetci", "sinav_ogrenci_kapali", "sinav_gorevlileri", "sinav_ogrencileri", "sinav_ogretmenleri", "sinavlar",
+              "sinav_seanslari", "sinav_salonlari", "sinav_kurallari", "sinav_donemleri", "belge_takibi",
+              "program_surumleri", "program_ders_gruplari", "program_hucreleri", "ders_atamalari", "koordinator_gorevleri", "ziyaretler", "devamsizlik",
               "beceri_notlari", "ek_ders_kayitlari", "aylik_odemeler", "yerlestirmeler", "ogrenciler", "dersler",
               "atolyeler", "isletme_talepleri", "anketler", "hizmetici_egitimler", "isletmeler", "siniflar",
               "ogretmenler", "dallar", "alanlar", "tatiller", "evrak"]:

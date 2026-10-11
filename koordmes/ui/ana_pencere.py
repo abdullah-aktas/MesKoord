@@ -25,18 +25,22 @@ from .sayfa_baglanti import BaglantiSayfasi
 from .sayfa_toplu_giris import TopluGirisSayfasi
 from .sayfa_toplu_gonderim import TopluGonderimSayfasi
 from .sayfa_belge_aktar import BelgeSayfasi
+from .sayfa_belge_takip import BelgeTakipSayfasi
 from .sayfa_ekders_devam import DevamSayfasi, EkDersSayfasi
+from .sayfa_esitleme import EsitlemeSayfasi
 from .sayfa_komisyon import KomisyonSayfasi, isletme_sayfasi
 from .sayfa_koordinator import KoordinatorSayfasi
 from .sayfa_program import ProgramSayfasi
+from .sayfa_program_araclari import ProgramAraclariSayfasi
 from .sayfa_sgk_ucret import SgkSayfasi, UcretSayfasi
+from .sayfa_sinav import SinavSayfasi
 from .sayfa_yerlestirme import yerlestirme_sayfasi
 from .yan_menu import YanMenu
 
 STIL = marka.stil()
 DAR_EKRAN = 1280  # bu genişliğin altındaki ekranlarda menü ilk açılışta simge şeridi olarak gelir
 # Canlı yenilemede dokunulmayan sayfalar (kullanıcının kaydetmediği girişleri silinmesin)
-CANLI_YENILEME_DISI = (MevzuatParametreleri, TopluGirisSayfasi, AktarimSayfasi, BaglantiSayfasi)
+CANLI_YENILEME_DISI = (MevzuatParametreleri, TopluGirisSayfasi, AktarimSayfasi, BaglantiSayfasi, EsitlemeSayfasi)
 
 
 def arayuz_ayarlari() -> QSettings:
@@ -124,16 +128,20 @@ class AnaPencere(QMainWindow):
             ("GENEL", [("Asistan", lambda: AsistanSayfasi(db, self)), ("Ana Sayfa", lambda: AnaSayfa(db)),
                        ("Toplu Veri Girişi", lambda: TopluGirisSayfasi(db, self)),
                        ("Veri Aktarımı", lambda: AktarimSayfasi(db, self)),
+                       ("e-Okul Öğrenci Eşitleme (Nakil)", lambda: EsitlemeSayfasi(db)),
                        ("e-Okul / e-Mesem / SGK Bağlantısı", lambda: BaglantiSayfasi(db, self)),
                        ("Toplu Gönderim (E-posta / WhatsApp)", lambda: TopluGonderimSayfasi(db))]),
             ("TANIMLAR", [("Öğrenciler / Çıraklar", crud(V.OGRENCILER)), ("Öğretmenler", crud(V.OGRETMENLER)),
                           ("İşletmeler", lambda: isletme_sayfasi(db)), ("Sınıflar / Şubeler", crud(V.SINIFLAR)),
                           ("Alanlar", crud(V.ALANLAR)), ("Dallar", crud(V.DALLAR)), ("Dersler", crud(V.DERSLER)),
                           ("Atölye / Laboratuvarlar", crud(V.ATOLYELER)), ("Tatil Günleri", crud(V.TATILLER))]),
-            ("DERS PROGRAMI", [("Ders Dağılımı ve Atölye Yerleşimi", lambda: ProgramSayfasi(db))]),
+            ("DERS PROGRAMI", [("Ders Dağılımı ve Atölye Yerleşimi", lambda: ProgramSayfasi(db)),
+                               ("Program Araçları (Kısıt, Sürüm, Devir, Yük)", lambda: ProgramAraclariSayfasi(db))]),
+            ("SINAV PLANLAMA", [("Sınav Planlama ve Görevlendirme", lambda: SinavSayfasi(db))]),
             ("İŞLETMELERDE MESLEKİ EĞİTİM", [
                 ("Yerleştirme ve Sözleşmeler", lambda: yerlestirme_sayfasi(db)),
                 ("Koordinatörlük", lambda: KoordinatorSayfasi(db)),
+                ("Koordinatörlük Formları ve Teslim Takibi", lambda: BelgeTakipSayfasi(db)),
                 ("Komisyon ve İzleme İşleri", lambda: KomisyonSayfasi(db)),
                 ("SGK Sigorta İşlemleri", lambda: SgkSayfasi(db)),
                 ("Öğrenci Ücreti ve Devlet Katkısı", lambda: UcretSayfasi(db)),

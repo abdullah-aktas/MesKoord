@@ -13,6 +13,7 @@ from ..services.baglanti import SISTEM_SOZLUK
 from ..services.utils import para
 from . import ortak
 from .sayfa_sgk_denetim import SgkKarsilastirma, SgkRiskleri
+from .sayfa_sgk_toplu import BilgiKontrolu, ListeDisiKalanlar, TopluCikisTarihi, TopluGirisTarihi
 
 
 def sgk_klasoru() -> Path:
@@ -232,6 +233,10 @@ class SgkSayfasi(QTabWidget):
         self.addTab(AylikPrimListesi(db), "Aylık Prim Hizmet Listesi")
         self.addTab(SgkKarsilastirma(db), "Liste Karşılaştırma")
         self.addTab(SgkRiskleri(db), "Risk ve Öneriler")
+        self.addTab(TopluGirisTarihi(db), "Toplu Giriş Tarihi")
+        self.addTab(TopluCikisTarihi(db), "Toplu Çıkış Tarihi")
+        self.addTab(ListeDisiKalanlar(db), "Liste Dışı Kalanlar")
+        self.addTab(BilgiKontrolu(db), "Bilgi Kontrolü")
 
 
 class UcretListesi(QWidget):

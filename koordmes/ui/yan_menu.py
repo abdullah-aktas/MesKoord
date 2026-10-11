@@ -21,6 +21,7 @@ TUR, AD = Qt.UserRole, Qt.UserRole + 1
 # Segoe Fluent Icons (Windows 11) / Segoe MDL2 Assets (Windows 10) kod noktaları; yazı tipi yoksa yedek karakter
 SIMGELER = {
     "GENEL": ("\ue80f", "⌂"), "TANIMLAR": ("\ue716", "☰"), "DERS PROGRAMI": ("\ue787", "▦"),
+    "SINAV PLANLAMA": ("\ue9d5", "✎"),
     "İŞLETMELERDE MESLEKİ EĞİTİM": ("\ue821", "⚒"), "PERSONEL": ("\ue77b", "☺"), "EVRAK": ("\ue8a5", "✉"),
     "SİSTEM": ("\ue713", "⚙"),
     "_ara": ("\ue721", "⌕"), "_menu": ("\ue700", "≡"), "_asagi": ("\ue70d", "▾"), "_sag": ("\ue76c", "▸"),

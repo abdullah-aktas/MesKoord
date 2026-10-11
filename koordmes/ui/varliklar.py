@@ -38,6 +38,8 @@ SINIFLAR = Varlik("siniflar", "Sınıflar / Şubeler", [
     Alan("isletme_gunleri", "İşletme Günleri", "days", varsayilan="",
          ipucu="İşletmede mesleki eğitim günleri. Koordinatör ziyaretleri bu günlere planlanır."),
     Alan("rehber_ogretmen_id", "Rehber Öğretmen", "fk", fk_sql=OGRETMEN_FK),
+    Alan("kapali_saatler", "Ders Konmayacak Saatler", "slots", listede=False,
+         ipucu="Okul günlerinde sınıfa ders yerleştirilmeyecek saatler (ör. sınıfın başka binada olduğu saatler)."),
 ], "seviye, ad", aciklama="12. sınıf MTAL öğrencileri için genellikle 2 gün okul + 3 gün işletme; MEM için 1 gün "
                           "okul + 4 gün işletme günleri tanımlayınız. Sınıf kaydedilince seviye, program, alan ve "
                           "dala göre çerçeve öğretim programındaki zorunlu dersler ders dağılımına açılmak üzere "
@@ -70,6 +72,9 @@ OGRENCILER = Varlik("ogrenciler", "Öğrenciler / Çıraklar", [
          ipucu="İşaretli: SGK prim %1 (belge 7/49). İşaretsiz: %6 (belge 42/50)."),
     Alan("dogum_tarihi", "Doğum Tarihi", "date", listede=False),
     Alan("cinsiyet", "Cinsiyet", "choice", secenekler=["E", "K"], listede=False),
+    Alan("baba_adi", "Baba Adı", listede=False), Alan("anne_adi", "Anne Adı", listede=False),
+    Alan("dogum_yeri", "Doğum Yeri", listede=False),
+    Alan("nufus_il", "Nüfusa Kayıtlı İl", listede=False), Alan("nufus_ilce", "Nüfusa Kayıtlı İlçe", listede=False),
     Alan("telefon", "Telefon", listede=False), Alan("veli_ad", "Veli Adı Soyadı"),
     Alan("veli_tel", "Veli Telefon"), Alan("iban", "IBAN", listede=False),
     Alan("adres", "Adres", "multiline", listede=False),

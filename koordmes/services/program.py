@@ -13,6 +13,10 @@ Kısıtlar (kesin):
   * Öğretmen günlük azami ders saati (parametre) aşılmaz; koordinatörlük günleri boş bırakılır (parametre;
     yerleşmeyen ders kalırsa bu kural gevşetilir ve bildirilir).
   * Kilitli hücreler korunur.
+  * Sınıfın ders konmayacak saatleri boş kalır; blok dersler öğle arasında bölünmez (parametre).
+  * Aynı güne gelmemesi istenen ders grupları ve (parametreyle) bir öğretmenin aynı sınıftaki farklı dersleri
+    ayrı günlere yerleşir; rehberlik dersleri bu kuraldan muaftır. Yerleşmeyen ders kalırsa bu kurallar gevşetilir
+    ve bildirilir.
 Tercihler (esnek): aynı dersin blokları farklı günlere, sınıf programında boşluk
 olmaması, öğretmen günlerinin toplu olması (koordinatörlük için boş gün kalması).
 """
@@ -42,6 +46,7 @@ class Atama:
     uyeler: list[int] = field(default_factory=list)  # birleştirilmiş derste birlikte yerleşen atamalar
     ek_siniflar: list[int] = field(default_factory=list)
     ek_ogretmenler: list[int] = field(default_factory=list)
+    ders_id: int | None = None
 
     def __post_init__(self):
         self.siniflar = tuple(dict.fromkeys([self.sinif_id, *self.ek_siniflar]))
@@ -78,20 +83,23 @@ def bloklara_bol(saat: int, blok: int) -> list[int]:
 
 
 def musaitlik_coz(metin: str | None, saat_sayisi: int) -> set[tuple[int, int]]:
-    """'1-*,3-5,3-6' biçimini {(gun, saat)} kümesine çevirir."""
+    """'1-*,3-5,3-6,*-1' biçimini {(gun, saat)} kümesine çevirir ('*-1': her günün 1. saati)."""
     out: set[tuple[int, int]] = set()
     for parca in (metin or "").replace(";", ",").split(","):
         parca = parca.strip()
         if "-" not in parca:
             continue
-        g, s = parca.split("-", 1)
-        if not g.strip().isdigit():
+        g, s = (x.strip() for x in parca.split("-", 1))
+        if g == "*":
+            gunler = range(1, 6)
+        elif g.isdigit():
+            gunler = [int(g)]
+        else:
             continue
-        gi = int(g)
-        if s.strip() == "*":
-            out |= {(gi, h) for h in range(1, saat_sayisi + 1)}
-        elif s.strip().isdigit():
-            out.add((gi, int(s)))
+        if s == "*":
+            out |= {(gi, h) for gi in gunler for h in range(1, saat_sayisi + 1)}
+        elif s.isdigit():
+            out |= {(gi, int(s)) for gi in gunler}
     return out
 
 
@@ -110,16 +118,22 @@ def musaitlik_metni(kapali: set[tuple[int, int]], saat_sayisi: int) -> str:
 class Cozucu:
     def __init__(self, atamalar: list[Atama], gun_sayisi: int, saat_sayisi: int,
                  sinif_gunleri: dict[int, list[int]], ogretmen_kapali: dict[int, set[tuple[int, int]]],
-                 kilitli: list[tuple] | None = None, seed: int | None = None, gunluk_azami: int = 0):
+                 kilitli: list[tuple] | None = None, seed: int | None = None, gunluk_azami: int = 0,
+                 sinif_kapali: dict[int, set[tuple[int, int]]] | None = None,
+                 ayni_gun_degil: dict[int, set[int]] | None = None, ogle_arasi: int = 0):
         self.S = saat_sayisi
         self.G = gun_sayisi
         self.azami = gunluk_azami or 0
+        self.ogle = ogle_arasi if 0 < (ogle_arasi or 0) < saat_sayisi else 0
+        self.ayni_gun = ayni_gun_degil or {}
         self.rng = random.Random(seed)
         tum = list(range(1, gun_sayisi + 1))
         gunler = {k: {g for g in v if 1 <= g <= gun_sayisi} for k, v in sinif_gunleri.items()}
         self.gunler = {a.id: [g for g in tum if all(g in gunler.get(c, set(tum)) for c in a.siniflar)]
                        for a in atamalar}
-        self.kapali = {a.id: set().union(*(ogretmen_kapali.get(t, set()) for t in a.ogretmenler))
+        sinif_kapali = sinif_kapali or {}
+        self.kapali = {a.id: set().union(*(ogretmen_kapali.get(t, set()) for t in a.ogretmenler),
+                                         *(sinif_kapali.get(c, set()) for c in a.siniflar))
                        for a in atamalar}
         self.atama_map = {a.id: a for a in atamalar}
         uye_map: dict[int, Atama] = {}
@@ -132,6 +146,7 @@ class Cozucu:
         self.oda_occ: dict[tuple[int, int, int], Blok] = {}
         self.ogr_gun: dict[tuple[int, int], int] = defaultdict(int)
         self.atama_gun: dict[tuple[int, int], int] = defaultdict(int)
+        self.gun_dolu: dict[tuple[int, int], int] = defaultdict(int)  # kilitliler dahil (atama, gün) blok sayısı
         self.bloklar: list[Blok] = []
         self.blok_sayisi: dict[int, int] = {}
 
@@ -172,6 +187,7 @@ class Cozucu:
         for t in a.ogretmenler:
             self.ogr_gun[(t, g)] += b.uzunluk
         b.yer = (g, s, oda, oda2)
+        self.gun_dolu[(a.id, g)] += 1
         if gun_say:
             self.atama_gun[(a.id, g)] += 1
 
@@ -192,14 +208,20 @@ class Cozucu:
         for t in a.ogretmenler:
             self.ogr_gun[(t, g)] -= b.uzunluk
         self.atama_gun[(a.id, g)] -= 1
+        self.gun_dolu[(a.id, g)] -= 1
         b.yer = None
 
     def _kesin_ayri_gun(self, a: Atama) -> bool:
         return self.blok_sayisi.get(a.id, 0) <= len(self.gunler.get(a.id, []))
 
     def _uygun_saat(self, a: Atama, g: int, s: int, L: int) -> bool:
+        if self.ogle and s <= self.ogle < s + L - 1:
+            return False
         kapali = self.kapali.get(a.id)
         return not kapali or all((g, h) not in kapali for h in range(s, s + L))
+
+    def _ayni_gun_dolu(self, a: Atama, g: int) -> bool:
+        return any(self.gun_dolu[(x, g)] > 0 for x in self.ayni_gun.get(a.id, ()))
 
     def _azami_asilir(self, a: Atama, g: int, L: int) -> bool:
         return bool(self.azami) and any(self.ogr_gun[(t, g)] + L > self.azami for t in a.ogretmenler)
@@ -219,7 +241,7 @@ class Cozucu:
         for g in self.gunler.get(a.id, []):
             if kesin and self.atama_gun[(a.id, g)] > 0:
                 continue
-            if self._azami_asilir(a, g, L):
+            if self._azami_asilir(a, g, L) or self._ayni_gun_dolu(a, g):
                 continue
             for s in range(1, self.S - L + 2):
                 if not self._uygun_saat(a, g, s, L):
@@ -274,10 +296,17 @@ class Cozucu:
         for g in self.gunler.get(a.id, []):
             if self._azami_asilir(a, g, L):
                 continue
+            gun_cat: set[Blok] = set()
+            if self._kesin_ayri_gun(a):
+                gun_cat |= {x for x in self.bloklar if x.atama.id == a.id and x.yer and x.yer[0] == g
+                            and not x.kilitli}
+            if self._ayni_gun_dolu(a, g):
+                diger = self.ayni_gun[a.id]
+                gun_cat |= {x for x in self.bloklar if x.atama.id in diger and x.yer and x.yer[0] == g}
             for s in range(1, self.S - L + 2):
                 if not self._uygun_saat(a, g, s, L):
                     continue
-                cat: set[Blok] = set()
+                cat: set[Blok] = set(gun_cat)
                 for h in range(s, s + L):
                     for c in a.siniflar:
                         x = self.sinif_occ.get((c, g, h))
@@ -287,9 +316,6 @@ class Cozucu:
                         x = self.ogr_occ.get((t, g, h))
                         if x:
                             cat.add(x)
-                if self._kesin_ayri_gun(a):
-                    cat |= {x for x in self.bloklar if x.atama.id == a.id and x.yer and x.yer[0] == g
-                            and not x.kilitli}
                 oda, oc = self._oda_catismasi(a.odalar, g, s, L)
                 if oc is None:
                     continue
@@ -409,7 +435,7 @@ def atamalari_oku(db) -> list[Atama]:
         odalar2 = [r["atolye2_id"]] if r["atolye2_id"] else (sirala(havuz) if bolunur else [])
         a = Atama(r["id"], r["sinif_id"], r["ogretmen_id"], int(r["haftalik_saat"] or 0),
                   int(r["blok"] or r["ders_blok"] or 1), odalar, f"{r['sinif']} - {r['ders']}",
-                  r["ogretmen2_id"], odalar2)
+                  r["ogretmen2_id"], odalar2, ders_id=r["ders_id"])
         tekil.append((a, (r["birlestirme"] or "").strip().casefold()))
 
     gruplar: dict[str, list[Atama]] = defaultdict(list)
@@ -428,7 +454,7 @@ def atamalari_oku(db) -> list[Atama]:
         out.append(Atama(-ana.id, ana.sinif_id, ana.ogretmen_id, ortak, ana.blok, odalar,
                          " + ".join(a.etiket for a in lst), ana.ogretmen2_id, [o for o in odalar2 if o],
                          [a.id for a in lst], [a.sinif_id for a in lst[1:]],
-                         [t for a in lst[1:] for t in (a.ogretmen_id, a.ogretmen2_id) if t]))
+                         [t for a in lst[1:] for t in (a.ogretmen_id, a.ogretmen2_id) if t], ana.ders_id))
         out += [replace(a, saat=a.saat - ortak) for a in lst if a.saat > ortak]
     return out
 
@@ -440,6 +466,49 @@ def _koordinatorluk_gunleri(db, S: int) -> dict[int, set[tuple[int, int]]]:
                      WHERE bitis IS NULL OR bitis = '' OR bitis >= ?""", (bugun,)):
         out[r["ogretmen_id"]] |= {(r["gun"], h) for h in range(1, S + 1)}
     return out
+
+
+def ders_gruplari(db) -> list[set[int]]:
+    """Etkin 'aynı güne gelmesin' ders grupları (ders kimlikleri)."""
+    out = []
+    for r in db.q("SELECT dersler FROM program_ders_gruplari WHERE aktif = 1"):
+        g = {int(x) for x in str(r["dersler"] or "").split(",") if x.strip().isdigit()}
+        if len(g) > 1:
+            out.append(g)
+    return out
+
+
+def rehberlik_dersleri(db) -> set[int]:
+    from .aktarim import norm
+    return {r["id"] for r in db.q("SELECT id, ad FROM dersler") if "rehberlik" in norm(r["ad"])}
+
+
+def gun_kurallari(atamalar: list[Atama], gruplar: list[set[int]], ogretmen_ayni_gun: bool,
+                  muaf: set[int]) -> dict[int, set[int]]:
+    """Aynı güne yerleşmemesi gereken atamalar: aynı sınıfta, farklı derslerden ve ya aynı ders grubunda ya da
+    (kural açıksa) aynı öğretmenin (muaf dersler hariç) dersleri."""
+    sinifta: dict[int, list[Atama]] = defaultdict(list)
+    for a in atamalar:
+        for c in a.siniflar:
+            sinifta[c].append(a)
+    out: dict[int, set[int]] = defaultdict(set)
+    for lst in sinifta.values():
+        for i, a in enumerate(lst):
+            for b in lst[i + 1:]:
+                if a.id == b.id or a.ders_id is None or b.ders_id is None or a.ders_id == b.ders_id:
+                    continue
+                kural = any(a.ders_id in g and b.ders_id in g for g in gruplar)
+                if not kural and ogretmen_ayni_gun and a.ders_id not in muaf and b.ders_id not in muaf:
+                    kural = bool(set(a.ogretmenler) & set(b.ogretmenler))
+                if kural:
+                    out[a.id].add(b.id)
+                    out[b.id].add(a.id)
+    return dict(out)
+
+
+def sinif_kapali_saatleri(db, S: int) -> dict[int, set[tuple[int, int]]]:
+    return {r["id"]: k for r in db.q("SELECT id, kapali_saatler FROM siniflar")
+            if (k := musaitlik_coz(r["kapali_saatler"], S))}
 
 
 def programi_olustur(db, sure_limit: float | None = None, seed: int | None = None,
@@ -456,17 +525,30 @@ def programi_olustur(db, sure_limit: float | None = None, seed: int | None = Non
         kilitli = [(r["atama_id"], r["gun"], r["saat"], r["atolye_id"], r["atolye2_id"])
                    for r in db.q("SELECT * FROM program_hucreleri WHERE kilitli = 1")]
     azami = db.ayar("program_ogretmen_gunluk_azami")
+    sinif_kapali = sinif_kapali_saatleri(db, S)
+    ogle = db.ayar("program_ogle_arasi")
+    kurallar = gun_kurallari(atamalar, ders_gruplari(db), db.ayar("program_ogretmen_ayni_gun"),
+                             rehberlik_dersleri(db))
 
-    def coz(kap):
-        return Cozucu(atamalar, 5, S, sinif_gunleri, kap, kilitli, seed, azami).coz(sure_limit)
+    def coz(kap, ayni_gun):
+        return Cozucu(atamalar, 5, S, sinif_gunleri, kap, kilitli, seed, azami, sinif_kapali, ayni_gun,
+                      ogle).coz(sure_limit)
 
     koord = _koordinatorluk_gunleri(db, S) if db.ayar("program_koord_gunu_bos") else {}
-    sonuc = coz({t: kapali.get(t, set()) | koord.get(t, set()) for t in set(kapali) | set(koord)})
+    tum_kapali = {t: kapali.get(t, set()) | koord.get(t, set()) for t in set(kapali) | set(koord)}
+    sonuc = coz(tum_kapali, kurallar)
+    if kurallar and sonuc.yerlesmeyen:
+        gevsek = coz(tum_kapali, {})
+        if len(gevsek.yerlesmeyen) < len(sonuc.yerlesmeyen):
+            gevsek.notlar.append("Aynı güne gelmemesi istenen dersler bu kurala uyularak tümüyle yerleşmedi; kural "
+                                 "gerektiği kadar gevşetildi ('Kontrol Et' kurala uymayan günleri listeler).")
+            sonuc, kurallar = gevsek, {}
     if koord and sonuc.yerlesmeyen:
-        ikinci = coz(kapali)
+        ikinci = coz(kapali, kurallar)
         if len(ikinci.yerlesmeyen) < len(sonuc.yerlesmeyen):
-            ikinci.notlar.append("Koordinatörlük günleri boş bırakılınca bazı dersler yerleşmedi; bu günler "
-                                 "gerektiği kadar derse açıldı (Veri Denetimi çakışan öğretmenleri listeler).")
+            ikinci.notlar = sonuc.notlar + ["Koordinatörlük günleri boş bırakılınca bazı dersler yerleşmedi; bu "
+                                            "günler gerektiği kadar derse açıldı (Veri Denetimi çakışan "
+                                            "öğretmenleri listeler)."]
             sonuc = ikinci
     with db.conn:
         db.conn.execute("DELETE FROM program_hucreleri" + (" WHERE kilitli = 0" if kilitlileri_koru else ""))
@@ -532,6 +614,43 @@ def catismalar(db) -> list[str]:
     return out
 
 
+def kural_ihlalleri(db) -> list[str]:
+    """Programın sınıf kapalı saatleri, öğle arası ve aynı gün kurallarına uymayan yerleri."""
+    S = db.ayar("gunluk_ders_saati")
+    hucreler = db.q("""SELECT ph.atama_id, ph.gun, ph.saat, da.sinif_id, s.ad AS sinif, d.ad AS ders,
+                              COALESCE(da.blok, d.blok, 1) AS blok
+                       FROM program_hucreleri ph JOIN ders_atamalari da ON da.id = ph.atama_id
+                       JOIN siniflar s ON s.id = da.sinif_id JOIN dersler d ON d.id = da.ders_id""")
+    out = []
+    kapali = sinif_kapali_saatleri(db, S)
+    for h in hucreler:
+        if (h["gun"], h["saat"]) in kapali.get(h["sinif_id"], set()):
+            out.append(f"Sınıfın kapalı saati: {h['sinif']} - {h['ders']} {h['gun']}. gün {h['saat']}. saat")
+    ogle = db.ayar("program_ogle_arasi")
+    if 0 < ogle < S:
+        yer = {(h["atama_id"], h["gun"], h["saat"]) for h in hucreler}
+        for h in hucreler:
+            if h["saat"] == ogle and (h["blok"] or 1) > 1 and (h["atama_id"], h["gun"], ogle + 1) in yer:
+                out.append(f"Öğle arasında bölünen blok: {h['sinif']} - {h['ders']} {h['gun']}. gün")
+    atamalar = atamalari_oku(db)
+    kurallar = gun_kurallari(atamalar, ders_gruplari(db), db.ayar("program_ogretmen_ayni_gun"),
+                             rehberlik_dersleri(db))
+    if kurallar:
+        gunler: dict[int, set[int]] = defaultdict(set)
+        for h in hucreler:
+            gunler[h["atama_id"]].add(h["gun"])
+        harita = {a.id: a for a in atamalar}
+        atama_gunleri = {a.id: set().union(*(gunler.get(k, set()) for k in a.kimlikler)) for a in atamalar}
+        for a_id, digerleri in kurallar.items():
+            for b_id in digerleri:
+                if a_id < b_id:
+                    ortak = atama_gunleri[a_id] & atama_gunleri[b_id]
+                    if ortak:
+                        out.append(f"Aynı güne gelmemeli: {harita[a_id].etiket} / {harita[b_id].etiket} "
+                                   f"({', '.join(f'{g}. gün' for g in sorted(ortak))})")
+    return out
+
+
 def eksik_saatler(db) -> list[tuple[str, int, int]]:
     """(atama etiketi, gereken saat, yerleşen saat) - eksik kalanlar."""
     rows = db.q("""SELECT s.ad || ' - ' || d.ad AS etiket, da.haftalik_saat AS gereken,
@@ -574,8 +693,10 @@ def on_denetim(db) -> list[OnDenetimBulgusu]:
             gorulen_grup.add(g)
         for t in {r["ogretmen_id"], r["ogretmen2_id"]} - {None}:
             ogr_yuk[t] += r["haftalik_saat"] or 0
+    sinif_kapali = sinif_kapali_saatleri(db, S)
     for sid, yuk in sinif_yuk.items():
-        kapasite = gun_sayisi[sid] * S
+        okul = set(gunler_listesi(siniflar[sid]["okul_gunleri"]) or [1, 2, 3, 4, 5])
+        kapasite = gun_sayisi[sid] * S - sum(1 for g, h in sinif_kapali.get(sid, set()) if g in okul and h <= S)
         if yuk > kapasite:
             out.append(OnDenetimBulgusu("Kritik", "Sınıf", f"{siniflar[sid]['ad']}: haftalık {yuk} saat ders, okul "
                                         f"günlerinde yalnızca {kapasite} saat var."))

@@ -1,5 +1,41 @@
 # MesKoord Sürüm Notları
 
+## 1.5.0 (hazırlanıyor)
+
+- **e-Okul Öğrenci Eşitleme (Nakil) — GENEL menüsü:** e-Okul'dan alınan güncel sınıf listeleri okul kayıtlarıyla
+  karşılaştırılır. Nakil gelenler eklenir, listede olmayanlar pasif yapılır ve açık sigortaları ayrılış
+  tarihiyle "Nakil" nedeniyle kapatılır, şube değiştirenler ve bilgisi farklı olanlar güncellenir. T.C. başka
+  öğrencide kayıtlıysa yanlış eşleştirme yapılmaz.
+- **Öğrenci nüfus bilgileri ve Açık Lise:** baba/anne adı, doğum yeri, nüfusa kayıtlı il/ilçe alanları; e-Okul
+  künye ve nüfus raporlarından aktarılır. "Yüz Yüze Eğitim", "Açık Lise", "MAOL" listelerindeki öğrenciler
+  kendiliğinden **Açık Lise** statüsüne alınır; aktarımda statü elle de seçilebilir.
+- **Devamsızlık aktarımı:** "Yalnızca şu tarihler arası" ile yıllık e-Okul raporundan yalnızca seçilen aralık
+  alınır; "Otomatik" yer seçeneği günü sınıfın işletme gününe göre İşletme/Okul sayar; okulda alan eğitimi
+  sigortalılarının okul devamsızlığı SGK eksik günü olarak işaretlenir.
+- **SGK Sigorta İşlemleri'ne dört yeni sekme:** Toplu Giriş Tarihi (sigortası olmayan öğrencilere tek tarihle
+  giriş, tür sınıfa göre), Toplu Çıkış Tarihi (dönem sonu, mezuniyet, nakil), Liste Dışı Kalanlar (aylık prim
+  listesine girmeyenler ve nedenleri), Bilgi Kontrolü (T.C., doğum tarihi, cinsiyet, IBAN, telefon eksikleri).
+  Liste Karşılaştırma'da SGK'da girişi olup okulda kaydı olmayan öğrenci için SGK tarihleriyle yerleştirme
+  oluşturulabilir.
+- **Program Araçları (DERS PROGRAMI menüsü):** öğle arası (blok dersler bölünmez), bir öğretmenin aynı sınıftaki
+  farklı derslerinin aynı güne gelmemesi, "aynı güne gelmeyecek ders grupları", kural denetimi; bir dersi
+  (rehberlik) seçili sınıfların aynı saatine toplu çakma; program sürümleri (kaydet / geri yükle); sınıf rehber
+  öğretmenlerini ders dağılımından atama; ayrılan öğretmenin derslerini devretme ya da aynı branşa paylaştırma;
+  öğretmen ve branş yük analizi, öğretmeni atanmamış dersler.
+- **Sınıflara "Ders Konmayacak Saatler":** otomatik yerleştirme bu saatlere ders koymaz (`*-1`: her günün
+  1. saati).
+- **Koordinatörlük Formları ve Teslim Takibi:** görev günlerinden barkodlu Günlük Rehberlik Görev Formu, Aylık
+  Rehberlik Raporu ve Koordinatör Öğretmen Aylık Görev Formu (Word). Teslim edilen form barkod okuyucuyla
+  okutulunca teslim işlenir, ilgili ziyaret "Yapıldı" olur; bekleyen ve geciken formlar öğretmen bazında izlenir.
+- **Yeni SINAV PLANLAMA menüsü — Sınav Planlama ve Görevlendirme:** sorumluluk, beceri, ortak ve telafi sınav
+  dönemleri; seans çizelgesi (kapalı oturumlar, tatil ve hariç günler); e-Okul "Sorumluluk Sınavına Girecek
+  Öğrenciler" listesinden sınav ve öğrenci aktarımı, sınav birleştirme, öğrencinin kapalı seansları; otomatik
+  sınav takvimi (öğrenci çakışması, günlük sınav sınırı, uygulamalı sınav günü, "aynı güne gelmesin" kuralları,
+  görevli ve salon kapasitesi, 12. sınıflar öne); çakılı sınavlar ve elle seans değiştirme; komisyon (dersi
+  okutan/alan/branş önceliği) ve gözcü görevlendirmesi, öğretmen kapalı seansları ve günlük sınırı; salon ve
+  sıra dağıtımı; plan denetimi. Çıktılar: sınav takvimi (Excel/Word), öğrenci giriş belgeleri, görevlendirme
+  yazıları, görev çizelgesi, yoklama/imza listeleri, sınav tutanakları, soru zarfı kapakları.
+
 ## 1.4.0
 
 - **e-Okul ders programı PDF'leri doğrudan tanınır:** e-Okul'dan alınan sınıf programı ve öğretmen programı

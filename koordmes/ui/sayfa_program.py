@@ -379,10 +379,11 @@ class ProgramTablosu(QWidget):
     def kontrol(self):
         c = program.catismalar(self.db)
         e = program.eksik_saatler(self.db)
-        if not c and not e:
-            ortak.bilgi(self, "Çakışma yok, tüm ders saatleri yerleşmiş.")
+        k = program.kural_ihlalleri(self.db)
+        if not c and not e and not k:
+            ortak.bilgi(self, "Çakışma yok, tüm ders saatleri yerleşmiş ve program kısıtlarına uyuyor.")
         else:
-            ortak.bilgi(self, "\n".join(c[:30] + [f"Eksik: {a} ({y}/{g})" for a, g, y in e[:30]]))
+            ortak.bilgi(self, "\n".join(c[:30] + [f"Eksik: {a} ({y}/{g})" for a, g, y in e[:30]] + k[:30]))
 
     def _tablo_satirlari(self, tip: str, kid: int) -> list[list[str]]:
         return tablo_satirlari(self.db, tip, kid)

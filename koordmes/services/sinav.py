@@ -22,6 +22,7 @@ from . import okuyucu
 from .aktarim import (IceAktarmaTanimi, ad_soyad_bol, birlesik_baslik, eslestir, metin, norm, satir_baglamlari,
                       sinif_adi, tr_ad)
 from .okuyucu import Tablo
+from .utils import gunler_listesi
 from .utils import tarih as tarih_coz
 
 SEKILLER = ["Yazılı", "Uygulama", "Sözlü", "Yazılı ve Uygulama"]
@@ -107,6 +108,32 @@ def donemler(db) -> list:
 
 def donem(db, donem_id: int | None):
     return db.q1("SELECT * FROM sinav_donemleri WHERE id = ?", (donem_id,)) if donem_id else None
+
+
+DERS_YILI_SECENEKLERI = ["Otomatik", "Evet", "Hayır"]
+
+
+def ders_yili_icinde(db, d: Any) -> bool:
+    """Sınavlar ders yılı içinde mi (öğretmenin dersi ve koordinatörlük günü, öğrencinin işletme günü sürüyor mu)?
+    'Otomatik': dönem başı (yoksa ilk seans) ders yılı başlangıcından sonra ve Temmuz-Ağustos dışında;
+    ders yılı başlangıcı girilmemiş ya da eskimişse Ekim-Haziran arası."""
+    if d is None:
+        return False
+    secim = d["ders_yili_icinde"] or "Otomatik"
+    if secim in ("Evet", "Hayır"):
+        return secim == "Evet"
+    bas = tarih_coz(d["baslangic"])
+    if bas is None:
+        r = db.q1("SELECT MIN(tarih) t FROM sinav_seanslari WHERE donem_id = ?", (d["id"],))
+        bas = tarih_coz(r["t"]) if r else None
+    if bas is None or bas.month in (7, 8):
+        return False
+    from .mesleki_egitim import ders_yili_baslangici
+    yil_basi = ders_yili_baslangici(db)
+    fark = (bas - yil_basi).days if yil_basi else None
+    if fark is not None and -90 < fark < 330:
+        return fark >= 0
+    return bas.month != 9
 
 
 def donem_ekle(db, ad: str, tur: str = "Sorumluluk", baslangic: date | str | None = None,
@@ -546,31 +573,97 @@ def idareci_mi(unvan: str | None) -> bool:
     return "mudur" in norm(unvan)
 
 
-def nobet_kapali_seanslar(db, donem_id: int, ogretmen_ids: Iterable[int] | None = None) -> dict[int, set[int]]:
-    """Öğretmenin okul nöbeti olan gün ile ders programında tamamen müsait olmadığı günlerin seansları."""
+KAPALI_NEDENLERI = {"nobet": "okul nöbeti", "musait": "ders programında müsait değil",
+                    "koordinator": "koordinatörlük görev günü", "ders": "o saatte dersi var"}
+
+
+def _dakika(s: str | None) -> int | None:
+    s = saat_coz(s) if s else None
+    return int(s[:2]) * 60 + int(s[3:]) if s else None
+
+
+def ders_saatleri(db) -> list[tuple[int, int]]:
+    """'program_ders_saatleri' parametresindeki ders saatleri (dakika olarak başlangıç, bitiş; 1. ders ilk sırada)."""
+    out = []
+    for b, e in saatleri_coz(db.ayar("program_ders_saatleri") or ""):
+        bd, ed = _dakika(b), _dakika(e)
+        if bd is not None and ed is not None and ed > bd:
+            out.append((bd, ed))
+    return out
+
+
+def kapali_seans_nedenleri(db, donem_id: int,
+                           ogretmen_ids: Iterable[int] | None = None) -> dict[int, dict[int, str]]:
+    """Öğretmen -> {seans: neden}: okul nöbeti ve ders programında tamamen müsait olmadığı gün; sınavlar ders yılı
+    içindeyse ayrıca koordinatörlük görev günü ve (ders saatleri girilmişse) dersinin seansa denk geldiği saatler."""
     from .program import musaitlik_coz
-    sl = [(r["id"], tarih_coz(r["tarih"])) for r in seanslar(db, donem_id)]
+    sl = [(r["id"], tarih_coz(r["tarih"]), _dakika(r["baslangic"]), _dakika(r["bitis"]))
+          for r in seanslar(db, donem_id)]
     if not sl:
         return {}
     S = int(db.ayar("gunluk_ders_saati") or 8)
     secili = set(ogretmen_ids) if ogretmen_ids is not None else None
-    out: dict[int, set[int]] = {}
+    ders_yili = ders_yili_icinde(db, donem(db, donem_id))
+    koord: dict[int, list] = defaultdict(list)
+    dersler: dict[int, set[tuple[int, int]]] = defaultdict(set)
+    saatler = ders_saatleri(db) if ders_yili else []
+    if ders_yili:
+        for r in db.q("SELECT ogretmen_id, gun, baslangic, bitis FROM koordinator_gorevleri"):
+            koord[r["ogretmen_id"]].append((r["gun"], tarih_coz(r["baslangic"]), tarih_coz(r["bitis"])))
+        if saatler:
+            for r in db.q("SELECT do.ogretmen_id, h.gun, h.saat FROM program_hucreleri h "
+                          "JOIN ders_ogretmenleri do ON do.atama_id = h.atama_id"):
+                dersler[r["ogretmen_id"]].add((r["gun"], r["saat"]))
+    out: dict[int, dict[int, str]] = {}
     for r in db.q("SELECT id, nobet_gun, musait_olmayan FROM ogretmenler WHERE aktif = 1"):
-        if secili is not None and r["id"] not in secili:
+        t_id = r["id"]
+        if secili is not None and t_id not in secili:
             continue
         kapali = musaitlik_coz(r["musait_olmayan"], S)
-        gunler = {g for g in range(1, 8) if all((g, h) in kapali for h in range(1, S + 1))}
-        if r["nobet_gun"]:
-            gunler.add(int(r["nobet_gun"]))
-        k = {sid for sid, t in sl if t and t.weekday() + 1 in gunler}
+        musait_degil = {g for g in range(1, 8) if all((g, h) in kapali for h in range(1, S + 1))}
+        nobet = int(r["nobet_gun"]) if r["nobet_gun"] else None
+        k: dict[int, str] = {}
+        for sid, t, bas, bit in sl:
+            if t is None:
+                continue
+            g = t.weekday() + 1
+            if g == nobet:
+                k[sid] = "nobet"
+            elif g in musait_degil:
+                k[sid] = "musait"
+            elif any(kg == g and (kb is None or t >= kb) and (ke is None or t <= ke) for kg, kb, ke in koord[t_id]):
+                k[sid] = "koordinator"
+            elif dersler[t_id] and bas is not None and bit is not None and any(
+                    (g, i + 1) in dersler[t_id] and b < bit and bas < e for i, (b, e) in enumerate(saatler)):
+                k[sid] = "ders"
         if k:
-            out[r["id"]] = k
+            out[t_id] = k
+    return out
+
+
+def nobet_kapali_seanslar(db, donem_id: int, ogretmen_ids: Iterable[int] | None = None) -> dict[int, set[int]]:
+    """Öğretmenin görev alamayacağı seanslar (nedenleri: `kapali_seans_nedenleri`)."""
+    return {t: set(k) for t, k in kapali_seans_nedenleri(db, donem_id, ogretmen_ids).items()}
+
+
+def eksik_kapali_seanslar(db, donem_id: int) -> dict[int, dict[int, str]]:
+    """Görev alan öğretmenlerin henüz kapalı seanslarına işlenmemiş nöbet/koordinatörlük/ders seansları."""
+    mevcut = {r["ogretmen_id"]: (kume_coz(r["kapali_seanslar"]), r["gorev_alir"]) for r in db.q(
+        "SELECT ogretmen_id, kapali_seanslar, gorev_alir FROM sinav_ogretmenleri WHERE donem_id = ?", (donem_id,))}
+    out = {}
+    for t, k in kapali_seans_nedenleri(db, donem_id).items():
+        if t not in mevcut or not mevcut[t][1]:
+            continue
+        kume = mevcut[t][0]
+        eksik = {s: n for s, n in k.items() if s not in kume}
+        if eksik:
+            out[t] = eksik
     return out
 
 
 def ogretmenleri_hazirla(db, donem_id: int) -> int:
     """Dönem için öğretmen satırlarını açar: etkin öğretmenler görev alır; müdür ve yardımcıları almaz. Yeni
-    satırlarda nöbet günü ve ders programında müsait olmadığı günlerin seansları kapalı gelir."""
+    satırlarda görev alamayacağı seanslar (nöbet, müsaitlik, koordinatörlük, ders saati) kapalı gelir."""
     mevcut = {r["ogretmen_id"] for r in db.q("SELECT ogretmen_id FROM sinav_ogretmenleri WHERE donem_id = ?",
                                              (donem_id,))}
     adaylar = [r for r in db.q("SELECT id, unvan FROM ogretmenler WHERE aktif = 1 ORDER BY id") if r["id"] not in mevcut]
@@ -586,8 +679,8 @@ def ogretmenleri_hazirla(db, donem_id: int) -> int:
 
 
 def nobetten_doldur(db, donem_id: int, ogretmen_ids: Iterable[int] | None = None) -> int:
-    """Nöbet ve müsaitlik günlerinin seanslarını öğretmenlerin kapalı seanslarına ekler (var olanlar korunur).
-    Kapalı seansı değişen öğretmen sayısını döndürür."""
+    """Nöbet, müsaitlik, koordinatörlük ve ders saatlerine denk gelen seansları öğretmenlerin kapalı seanslarına
+    ekler (var olanlar korunur). Kapalı seansı değişen öğretmen sayısını döndürür."""
     ogretmenleri_hazirla(db, donem_id)
     kapali = nobet_kapali_seanslar(db, donem_id, ogretmen_ids)
     mevcut = {r["ogretmen_id"]: kume_coz(r["kapali_seanslar"]) for r in db.q(
@@ -1146,6 +1239,7 @@ class _Ogrenci:
     sinif: str
     seviye: int | None
     okul_no: str = ""
+    isletme: frozenset[int] = frozenset()
 
 
 class _Veri:
@@ -1174,13 +1268,15 @@ class _Veri:
             self.yerlesim[(r["sinav_id"], r["ogrenci_id"])] = (r["salon_id"], r["sira_no"])
             if r["salon_kilitli"] and r["salon_id"]:
                 self.salon_kilitli.add((r["sinav_id"], r["ogrenci_id"]))
+        self.ders_yili = ders_yili_icinde(db, d)
         self.ogrenci: dict[int, _Ogrenci] = {}
-        for r in db.q("""SELECT o.id, o.ad, o.soyad, o.okul_no, si.ad AS sinif, si.seviye FROM ogrenciler o
-                         LEFT JOIN siniflar si ON si.id = o.sinif_id
+        for r in db.q("""SELECT o.id, o.ad, o.soyad, o.okul_no, si.ad AS sinif, si.seviye, si.isletme_gunleri
+                         FROM ogrenciler o LEFT JOIN siniflar si ON si.id = o.sinif_id
                          WHERE o.id IN (SELECT so.ogrenci_id FROM sinav_ogrencileri so
                                         JOIN sinavlar s ON s.id = so.sinav_id WHERE s.donem_id = ?)""", (donem_id,)):
             ad = f"{r['ad']} {r['soyad']}".strip() + (f" ({r['okul_no']})" if r["okul_no"] else "")
-            self.ogrenci[r["id"]] = _Ogrenci(r["id"], ad, r["sinif"] or "", r["seviye"], metin(r["okul_no"]))
+            isl = frozenset(gunler_listesi(r["isletme_gunleri"])) if self.ders_yili else frozenset()
+            self.ogrenci[r["id"]] = _Ogrenci(r["id"], ad, r["sinif"] or "", r["seviye"], metin(r["okul_no"]), isl)
         self.ogr_kapali: dict[int, set[int]] = defaultdict(set)
         for r in db.q("SELECT ogrenci_id, seans_id FROM sinav_ogrenci_kapali WHERE donem_id = ?", (donem_id,)):
             self.ogr_kapali[r["ogrenci_id"]].add(r["seans_id"])
@@ -1294,6 +1390,7 @@ W_ERKEN = 0.02
 W_DENGE = 1.0
 W_KOMISYON = 30.0
 W_BOSLUK = 2.0
+W_ISLETME = 25.0
 
 NEDENLER = {
     "kapali": "açık seans yok",
@@ -1308,6 +1405,38 @@ NEDENLER = {
     "ogretmen": "görevli öğretmen sayısı yetmiyor",
     "salon": "salon kapasitesi yetmiyor",
 }
+ONERILER = {
+    "kapali": "'Seans Çizelgesi' sekmesinde kapalı seansları açın ya da dönem bitişini uzatıp seansları yeniden "
+              "oluşturun.",
+    "ogrenci_kapali": "'Sınavlar ve Öğrenciler' sekmesinde öğrencilerin kapalı seanslarını azaltın.",
+    "gun_kurali": "'Öğretmenler > Gün Kuralları' bölümünde bu sınavın yapılabileceği günleri genişletin.",
+    "cakisma": "Çakışan sınavlardan birini başka seansa alın ya da sınav günlerine bir oturum daha ekleyin.",
+    "gunluk": "Dönem ayarındaki 'öğrencinin günlük sınav sayısı' sınırını artırın ya da sınav günü ekleyin.",
+    "uygulama": "Uygulamalı sınava giren öğrencinin o gün başka sınavı olamaz; sınav günü ekleyin.",
+    "kural": "'Aynı güne gelmesin' kuralını gözden geçirin ya da sınav günü ekleyin.",
+    "ayni_seans": "'Aynı seansta yapılsın' kuralındaki sınavların ortak öğrencisi olmamalı; kuralı kontrol edin.",
+    "bagli": "Bağlı sınavda yazılının ertesi sınav gününün ilk seansı açık ve uygun olmalı; bağlantıyı kontrol edin.",
+    "ogretmen": "'Öğretmenler' sekmesinde görev alan öğretmen sayısını veya günlük görev sınırını artırın, kapalı "
+                "seansları azaltın ya da sınava özel komisyon/gözcü sayısını düşürün.",
+    "salon": "'Salonlar' sekmesinde salon ekleyin veya kapasiteleri artırın.",
+}
+
+
+@dataclass
+class SinavNedeni:
+    """Yerleşemeyen sınavın ayrıntılı nedeni: hangi engel kaç seansı kapattı, kimlerle çakıştı, ne yapılmalı."""
+    sinav_id: int
+    etiket: str
+    ogrenci: int
+    ozet: str
+    nedenler: list[str] = field(default_factory=list)
+    oneriler: list[str] = field(default_factory=list)
+
+    def metin(self) -> str:
+        satirlar = [f"{self.etiket} ({self.ogrenci} öğrenci): {self.ozet}"]
+        satirlar += [f"  • {n}" for n in self.nedenler]
+        satirlar += [f"  → {o}" for o in self.oneriler]
+        return "\n".join(satirlar)
 
 
 @dataclass
@@ -1332,6 +1461,7 @@ class _PSinav:
     komsu: set[int] = field(default_factory=set)
     dom: list[int] = field(default_factory=list)
     dom_gun: dict[int, list[int]] = field(default_factory=dict)
+    isletme: dict[int, int] = field(default_factory=dict)  # haftanın günü -> o gün işletmede olan öğrenci
 
 
 class _Planlayici:
@@ -1347,6 +1477,7 @@ class _Planlayici:
         gidx = {t: i for i, t in enumerate(gunler)}
         self.S, self.G = len(sl), len(gunler)
         self.gun = [gidx[r["tarih"]] for r in sl]
+        self.hafta_gunu = [tarih_coz(r["tarih"]).weekday() + 1 for r in sl]
         self.acik = [bool(r["acik"]) and (gun_siniri is None or self.gun[i] <= gun_siniri) for i, r in enumerate(sl)]
         sayac: Counter = Counter()
         self.gun_sira = []
@@ -1387,10 +1518,13 @@ class _Planlayici:
             nit = frozenset(v.nitelik.get(r["id"], {}))
             sabit = sidx.get(r["seans_id"]) if (r["cakili"] or koru) and r["seans_id"] in sidx else None
             n12 = sum(1 for o in ogr if v.ogrenci.get(o) and v.ogrenci[o].seviye == 12)
+            isletme = Counter(g for o in ogr if v.ogrenci.get(o) for g in v.ogrenci[o].isletme)
             self.x.append(_PSinav(r["id"], ids, len(ids), uygulamali(r["sekil"]),
                                   salon_gerekir(r["sekil"]) or bool(v.sinav_salon.get(r["id"])), kom + goz, n12,
-                                  sabit, yasak, nit, min(kom, len(nit)), norm(r["ders"]), gun_yasak))
+                                  sabit, yasak, nit, min(kom, len(nit)), norm(r["ders"]), gun_yasak,
+                                  isletme=dict(isletme)))
         self.N = len(oidx)
+        self.ogr_id = sorted(oidx, key=oidx.__getitem__)
         self.ogr_sinav: list[list[int]] = [[] for _ in range(self.N)]
         for e, x in enumerate(self.x):
             for st in x.ogr:
@@ -1538,6 +1672,8 @@ class _Planlayici:
                     if gun[s2] == d and s2 != s:
                         bosluk += abs(sira - gs[s2]) - 1
         c = W_AYNI_GUN * ayni + W_BOSLUK * bosluk + W_ERKEN * x.n * s
+        if x.isletme:
+            c += W_ISLETME * x.isletme.get(self.hafta_gunu[s], 0)
         if x.n12:
             c += x.n12 * (W_12_GUN * d + W_12_SEANS * self.gun_sira[s])
         L = self.seans_n[s]
@@ -1571,6 +1707,7 @@ class _Planlayici:
             if s < 0:
                 continue
             c += W_ERKEN * x.n * s + x.n12 * (W_12_GUN * self.gun[s] + W_12_SEANS * self.gun_sira[s])
+            c += W_ISLETME * x.isletme.get(self.hafta_gunu[s], 0)
             if x.k and self.ogretmen_var:
                 m = self.musait[s]
                 av = x.nitelikli & m
@@ -1762,6 +1899,88 @@ class _Planlayici:
         say.pop(None, None)
         return ", ".join(NEDENLER[k] for k, _ in say.most_common(2)) or "uygun seans bulunamadı"
 
+    def _ad(self, f: int) -> str:
+        return sinav_adi(self.v.sinav[self.x[f].id])
+
+    def tani(self, e: int) -> SinavNedeni:
+        """Her seansı neyin kapattığını sayar; engel olan sınavları, sınav yükü açık günlere sığmayan öğrencileri,
+        görevli/salon açığını ve yapılabilecekleri listeler."""
+        x, v = self.x[e], self.v
+        say: Counter = Counter()
+        if x.sabit is None:
+            for s in range(self.S):
+                if not self.acik[s]:
+                    say["kapali"] += 1
+                elif s in x.yasak:
+                    say["ogrenci_kapali"] += 1
+                elif s in x.gun_yasak:
+                    say["gun_kurali"] += 1
+        diger: dict[str, Counter] = defaultdict(Counter)
+        bos_gorev = bos_salon = 0
+        for s in x.dom:
+            k = self.engel(e, s)
+            if k is None:
+                continue
+            say[k] += 1
+            d = self.gun[s]
+            if k in ("cakisma", "gunluk", "uygulama"):
+                diger[k].update({f for st in x.ogr for f in self.ogr_sinav[st] if f != e and self.yer[f] >= 0 and (
+                    self.yer[f] == s if k == "cakisma" else self.gun[self.yer[f]] == d)})
+            elif k == "kural":
+                diger[k].update(f for f in x.gun_cak if self.yer[f] >= 0 and self.gun[self.yer[f]] == d)
+            elif k == "ayni_seans":
+                diger[k].update(f for f in x.ayni if self.yer[f] >= 0 and self.yer[f] != s)
+            elif k == "ogretmen":
+                bos_gorev = max(bos_gorev, min(self.kap[s] - self.seans_gorev[s], self.gun_kap[d] - self.gun_gorev[d]))
+            elif k == "salon":
+                bos_salon = max(bos_salon, self.salon_kap - self.seans_salon[s])
+        acik_gun = Counter(self.gun[s] for s in range(self.S) if self.acik[s])
+        kapasite = sum(min(self.azami, n) for n in acik_gun.values())
+        yuklu = []
+        for st in x.ogr:
+            sinavlar = self.ogr_sinav[st]
+            u = sum(1 for f in sinavlar if self.x[f].uyg)
+            gerek = u + math.ceil((len(sinavlar) - u) / self.azami)
+            if len(sinavlar) > kapasite or gerek > len(acik_gun):
+                yuklu.append((st, len(sinavlar), gerek))
+
+        nedenler = []
+        for k, n in say.most_common():
+            satir = f"{NEDENLER[k][0].upper()}{NEDENLER[k][1:]}: {n} seans"
+            if diger.get(k):
+                adlar = [self._ad(f) for f, _ in diger[k].most_common(3)]
+                satir += f" (engel olan: {', '.join(adlar)}{' ...' if len(diger[k]) > 3 else ''})"
+            elif k == "ogretmen":
+                satir += (f" (sınav {x.gorev} görevli ister; uygun seanslarda en çok {max(0, bos_gorev)} öğretmen "
+                          f"boşta)")
+            elif k == "salon":
+                satir += (f" ({x.n} öğrenci; uygun seanslarda en çok {max(0, bos_salon)} kişilik yer boş, toplam "
+                          f"salon kapasitesi {self.salon_kap})")
+            nedenler.append(satir)
+        for st, n, g in yuklu[:3]:
+            o = v.ogrenci.get(self.ogr_id[st])
+            ad = f"{o.ad} ({o.sinif})" if o and o.sinif else (o.ad if o else "Bir öğrenci")
+            nedenler.append(f"{ad}: {n} sınavı var; günde en çok {self.azami} sınavla en az {g} sınav günü gerekir, "
+                            f"açık sınav günü {len(acik_gun)}.")
+        if len(yuklu) > 3:
+            nedenler.append(f"Sınav yükü sığmayan {len(yuklu) - 3} öğrenci daha var.")
+
+        if yuklu:
+            ozet = f"{len(yuklu)} öğrencinin sınav yükü açık sınav günlerine sığmıyor."
+        elif not x.dom:
+            ozet = "Sınavın girebileceği açık seans yok."
+        elif say:
+            ilk = NEDENLER[say.most_common(1)[0][0]]
+            ozet = f"{len(x.dom)} aday seansın hiçbirine yerleşemedi; başlıca engel: {ilk}."
+        else:
+            ozet = "Uygun seans bulunamadı."
+        oneriler = []
+        if yuklu:
+            oneriler.append("Sınav günü ekleyin veya öğrencinin günlük sınav sınırını artırın; gerekirse öğrencinin "
+                            "bazı sınavlarını sonraki döneme bırakın.")
+        oneriler += [ONERILER[k] for k, _ in say.most_common() if ONERILER[k] not in oneriler]
+        return SinavNedeni(x.id, self._ad(e), x.n, ozet, nedenler, oneriler)
+
 
 @dataclass
 class PlanSonucu:
@@ -1771,6 +1990,7 @@ class PlanSonucu:
     korunan: int = 0
     ogrencisiz: int = 0
     yerlesemeyen: list[tuple[int, str, str]] = field(default_factory=list)  # (sınav, ad, neden)
+    nedenler: list[SinavNedeni] = field(default_factory=list)
     degisen: int = 0
     maliyet: float = 0.0
     sure: float = 0.0
@@ -1845,11 +2065,79 @@ def planla(db, donem_id: int, sure_limit: float = 10.0, seed: int | None = None,
     sonuc.cakili = sum(1 for x in p.x if x.sabit is not None) - sonuc.korunan
     sonuc.ogrencisiz = len(p.ogrencisiz)
     sonuc.yerlesen = sum(1 for s in p.yer if s >= 0)
-    sonuc.yerlesemeyen = [(p.x[e].id, sinav_adi(v.sinav[p.x[e].id]), p.neden(e))
-                          for e in sorted(yerlesmeyen, key=lambda e: p.x[e].id)]
+    sirali = sorted(yerlesmeyen, key=lambda e: p.x[e].id)
+    sonuc.yerlesemeyen = [(p.x[e].id, sinav_adi(v.sinav[p.x[e].id]), p.neden(e)) for e in sirali]
+    sonuc.nedenler = [p.tani(e) for e in sirali]
     sonuc.maliyet = round(p.toplam_maliyet(), 1)
+    if yerlesmeyen:
+        sonuc.notlar += _ek_analiz(v, seed, koru, time.monotonic() + min(8.0, max(2.0, sure_limit / 2)))
     sonuc.sure = time.monotonic() - bas
     return sonuc
+
+
+def _sanal_gunler(v: _Veri, k: int) -> tuple[list[dict], date]:
+    """Son açık sınav gününün oturum düzeniyle sonraki k iş gününe sanal seanslar (yalnız deneme için)."""
+    acik = [r for r in v.seanslar if r["acik"]]
+    son = max(r["tarih"] for r in acik)
+    desen = [r for r in acik if r["tarih"] == son]
+    t = tarih_coz(son)
+    yeni: list[dict] = []
+    for _ in range(k):
+        t += timedelta(days=1)
+        while t.weekday() >= 5:
+            t += timedelta(days=1)
+        for r in desen:
+            yeni.append({"id": -1 - len(yeni), "tarih": t.isoformat(), "sira": r["sira"],
+                         "baslangic": r["baslangic"], "bitis": r["bitis"], "acik": 1})
+    return yeni, t
+
+
+def _ek_analiz(v: _Veri, seed: int | None, koru: bool, bitis: float) -> list[str]:
+    """Sınav yerleşemediğinde: kaç sınav günü daha eklenirse ya da öğrencinin günlük sınırı bir artarsa bütün
+    sınavların sığdığı (plan değişmez)."""
+    import copy
+
+    def sigar(v2: _Veri) -> bool:
+        p = _Planlayici(v2, random.Random(seed), koru=koru)
+        U = p.kur()
+        if U:
+            U = p.onar(U, min(bitis, time.monotonic() + 3.0), 30 * len(p.x) + 100)
+        return not U
+
+    notlar = []
+    if not any(r["acik"] for r in v.seanslar):
+        return notlar
+    for k in (1, 2, 3, 5):
+        if time.monotonic() >= bitis:
+            break
+        yeni, son = _sanal_gunler(v, k)
+        v2 = copy.copy(v)
+        v2.seanslar = list(v.seanslar) + yeni
+        v2.seans = {**v.seans, **{r["id"]: r for r in yeni}}
+        if sigar(v2):
+            notlar.append(f"Öneri: dönem {k} sınav günü uzatılırsa (son gün {son:%d.%m.%Y} {GUN_ADLARI[son.weekday()]}, "
+                          f"son günün oturum düzeniyle; resmî tatilleri kontrol edin) bütün sınavlar yerleşiyor.")
+            break
+    else:
+        if time.monotonic() < bitis:
+            notlar.append("Dönemi 5 sınav günü uzatmak da yetmiyor; yerleşemeyen sınavların nedenlerine bakın.")
+    if time.monotonic() < bitis:
+        v3 = copy.copy(v)
+        v3.ogr_azami = v.ogr_azami + 1
+        if sigar(v3):
+            notlar.append(f"Öneri: öğrencinin günlük sınav sınırı {v.ogr_azami} yerine {v.ogr_azami + 1} yapılırsa "
+                          f"bütün sınavlar mevcut günlere sığıyor.")
+    return notlar
+
+
+def yerlesmeme_nedenleri(db, donem_id: int) -> list[SinavNedeni]:
+    """Seansı olmayan (öğrencisi olan) sınavların mevcut plana göre neden yerleşemediği. Veritabanını değiştirmez."""
+    v = _Veri(db, donem_id)
+    p = _Planlayici(v, random.Random(0), koru=True)
+    for e, x in enumerate(p.x):
+        if x.sabit is not None:
+            p.yerlestir(e, x.sabit)
+    return [p.tani(e) for e, x in enumerate(p.x) if x.sabit is None]
 
 
 @dataclass

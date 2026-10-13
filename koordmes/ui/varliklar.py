@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from ..mevzuat import (ANKET_TURLERI, CALISMA_DURUMLARI, DEVAMSIZLIK_TURLERI, FESIH_NEDENLERI, OGRENCI_STATULERI,
-                       PROGRAMLAR, UNVANLAR, YERLESTIRME_TURLERI)
+                       ONCELIKLI_TERCIHLER, PROGRAMLAR, TEDRISAT_TURLERI, UNVANLAR, YERLESTIRME_TURLERI)
 from .crud import Alan, Varlik
 from .sayfa_cerceve import ders_dagilimi_eylemi, sinif_kaydedildi, siniflar_eylemi
 
@@ -40,6 +40,9 @@ SINIFLAR = Varlik("siniflar", "Sınıflar / Şubeler", [
     Alan("rehber_ogretmen_id", "Rehber Öğretmen", "fk", fk_sql=OGRETMEN_FK),
     Alan("kapali_saatler", "Ders Konmayacak Saatler", "slots", listede=False,
          ipucu="Okul günlerinde sınıfa ders yerleştirilmeyecek saatler (ör. sınıfın başka binada olduğu saatler)."),
+    Alan("tedrisat", "Öğretim Şekli", "choice", True, TEDRISAT_TURLERI, varsayilan="Tam gün", listede=False,
+         ipucu="İkili öğretimde sabahçı sınıfa yalnız sabah, öğlenci sınıfa yalnız öğleden sonra ders konur "
+               "(sınır: 'İkili öğretimde sabahçı yarının son saati' parametresi)."),
 ], "seviye, ad", aciklama="12. sınıf MTAL öğrencileri için genellikle 2 gün okul + 3 gün işletme; MEM için 1 gün "
                           "okul + 4 gün işletme günleri tanımlayınız. Sınıf kaydedilince seviye, program, alan ve "
                           "dala göre çerçeve öğretim programındaki zorunlu dersler ders dağılımına açılmak üzere "
@@ -60,6 +63,12 @@ OGRETMENLER = Varlik("ogretmenler", "Öğretmenler ve Yöneticiler", [
          ipucu="Koordinatörlük görevinde önceliklidir (Ortaöğretim Kurumları Yönetmeliği md.88/2-e). "
                "Unvanı 'Atölye/Lab. Öğretmeni' olanlar ayrıca işaretlenmese de öncelikli sayılır."),
     Alan("musait_olmayan", "Müsait Olmadığı Saatler", "slots", listede=False),
+    Alan("oncelikli_tercih", "Ders programında tercihi öncelikli", "choice", secenekler=ONCELIKLI_TERCIHLER,
+         listede=False,
+         ipucu="Ortaöğretim Kurumları Yönetmeliği md.12: engelli, engelli yakını, 36 ayını doldurmamış çocuğu olan "
+               "ve süt izni kullanan öğretmenlerin tercihleri dikkate alınır. Tercihini 'Müsait Olmadığı Saatler' "
+               "alanına işleyin; mevzuat denetimi boş bırakılanları uyarır. Kişisel veridir; işlem günlüğünde "
+               "gizlenir."),
     Alan("aktif", "Aktif", "bool", varsayilan=1),
 ], "ad, soyad", filtre_alani="alan_id")
 
@@ -69,7 +78,13 @@ OGRENCILER = Varlik("ogrenciler", "Öğrenciler / Çıraklar", [
     Alan("sinif_id", "Sınıf", "fk", fk_sql=SINIF_FK),
     Alan("statu", "Statü", "choice", True, OGRENCI_STATULERI, varsayilan="Öğrenci"),
     Alan("bakmakla_yukumlu", "Bakmakla yükümlü olunan (GSS anne/babadan)", "bool", varsayilan=1,
-         ipucu="İşaretli: SGK prim %1 (belge 7/49). İşaretsiz: %6 (belge 42/50)."),
+         ipucu="İşaretli: SGK prim %1 (belge 7/49). İşaretsiz: %6 (belge 42/50). 20 yaşını dolduran öğrenci, "
+               "yaşını doldurduğu aydan sonraki aylarda işaretli kalsa da kendiliğinden 42/50 ile bildirilir."),
+    Alan("baska_sigortali", "Başka bir işte sigortalı çalışıyor (kendi GSS'si var)", "bool", varsayilan=0,
+         listede=False,
+         ipucu="Çoğunlukla açık lise (MAOL) ve yetişkin MESEM öğrencileri: kendi işyerinden 4A/4B/4C sigortalıysa "
+               "genel sağlık sigortası primi ayrıca ödenmez; belge 7/49 (prim %1) ile bildirilir. SGK hizmet "
+               "dökümüyle doğrulayıp işaretleyin."),
     Alan("dogum_tarihi", "Doğum Tarihi", "date", listede=False),
     Alan("cinsiyet", "Cinsiyet", "choice", secenekler=["E", "K"], listede=False),
     Alan("baba_adi", "Baba Adı", listede=False), Alan("anne_adi", "Anne Adı", listede=False),
@@ -130,6 +145,11 @@ DERSLER = Varlik("dersler", "Dersler", [
     Alan("tur", "Tür", "choice", True, ["Kültür", "Meslek", "Atölye"], varsayilan="Meslek"),
     Alan("atolye_gerekli", "Atölye/Lab. gerektirir", "bool"),
     Alan("blok", "Blok (ardışık saat)", "int", varsayilan=2, ipucu="Ör. 4: ders 4'er saatlik bloklar halinde yerleşir."),
+    Alan("blok_deseni", "Blok Deseni", listede=False,
+         ipucu="Ör. 2+2+1: 5 saatlik ders 2, 2 ve 1 saatlik parçalara bölünür. Boşsa 'Blok' değeri kullanılır."),
+    Alan("ogle_bolunmez", "Öğle arasında bölünmez", "bool", listede=False,
+         ipucu="'Öğle arasında bütün blok dersler bölünmesin' parametresi kapalıyken yalnız işaretli dersler "
+               "öğle arasında bölünmez."),
 ], "ad", filtre_alani="alan_id")
 
 DERS_ATAMALARI = Varlik("ders_atamalari", "Ders Dağılımı", [
@@ -138,6 +158,8 @@ DERS_ATAMALARI = Varlik("ders_atamalari", "Ders Dağılımı", [
     Alan("ogretmen_id", "Öğretmen", "fk", fk_sql=OGRETMEN_FK),
     Alan("haftalik_saat", "Haftalık Saat", "int", True, varsayilan=2),
     Alan("blok", "Blok (boş=dersin bloğu)", "int", ipucu="0 bırakılırsa dersin blok değeri kullanılır."),
+    Alan("blok_deseni", "Blok Deseni (boş=dersin deseni)", listede=False, ipucu="Ör. 2+1 veya 4+4+2."),
+    Alan("ogle_bolunmez", "Öğle arasında bölünmez", "bool", listede=False),
     Alan("atolye_id", "Sabit Atölye/Lab.", "fk", fk_sql=ATOLYE_FK,
          ipucu="Boş bırakılırsa atölye gerektiren derslere alanın atölyelerinden uygun olan seçilir."),
     Alan("ogretmen2_id", "2. Öğretmen (grup/çiftli)", "fk", fk_sql=OGRETMEN_FK,

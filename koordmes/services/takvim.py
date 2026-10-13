@@ -4,9 +4,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from . import devam, sigorta
-from .utils import ay_araligi, ilerideki_is_gunu, tatil_gunleri, tc_gecerli, tr
+from . import devam, sgk_risk, sigorta
+from .utils import ay_araligi, ilerideki_is_gunu, para, tatil_gunleri, tc_gecerli, tr
 from ..mevzuat import AYLAR
+
+
+SGK_EKRANI = "SGK Sigorta İşlemleri"
+KONU_EKRANI = {"SGK": SGK_EKRANI, "SGK Ceza Riski": SGK_EKRANI, "MESEM": "Yerleştirme ve Sözleşmeler",
+               "Sözleşme": "Yerleştirme ve Sözleşmeler", "Değerlendirme": "Devamsızlık ve Değerlendirme",
+               "Devamsızlık": "Devamsızlık ve Değerlendirme", "Devlet Katkısı": "Öğrenci Ücreti ve Devlet Katkısı",
+               "Koordinatörlük": "Koordinatörlük", "İşletme": "İşletmeler", "Öğrenci": "Öğrenciler / Çıraklar",
+               "Ayarlar": "Ayarlar ve Mevzuat Parametreleri", "Sınav": "Sınav Planlama ve Görevlendirme"}
 
 
 @dataclass
@@ -15,6 +23,7 @@ class Uyari:
     konu: str
     mesaj: str
     tarih: date | None = None
+    git: str = ""  # çift tıklayınca açılacak ekran
 
 
 def _onceki_ay(d: date) -> tuple[int, int]:
@@ -42,6 +51,21 @@ def _yonetmelik_sureleri(db, bugun: date, out: list[Uyari]) -> None:
             out.append(Uyari("Kritik", "Değerlendirme",
                              f"{p.donem}. dönem puan çizelgesi teslim süresi geçti ({tr(p.son_teslim)}); "
                              f"{len(p.eksik)} öğrencinin işletme notu eksik.", p.son_teslim))
+    gec, mem_yakin = [], []
+    for s in mesleki_egitim.sozlesme_sureleri(db):
+        kalan = (s.son - bugun).days
+        if kalan < 0:
+            gec.append(f"{s.ad} ({tr(s.son)})")
+        elif s.mem and kalan <= 14:
+            ne = "yeni işletmeyle sözleşme" if s.neden == "İşyeri değişikliği" else "çıraklık sözleşmesi"
+            mem_yakin.append(Uyari(_kalan_seviye(kalan), "MESEM",
+                                   f"{s.ad} ({s.sinif}): {ne} en geç {tr(s.son)} imzalanmalı ({kalan} gün kaldı); "
+                                   "imzalanınca yerleştirmeye sözleşme tarihini girin (md.143).", s.son,
+                                   "Yerleştirme ve Sözleşmeler"))
+    out.extend(mem_yakin)
+    if gec:
+        out.append(Uyari("Kritik", "Sözleşme", f"{len(gec)} öğrencinin sözleşme imza süresi geçti (md.143): "
+                         + ", ".join(gec[:5]) + (" ..." if len(gec) > 5 else ""), None, "Yerleştirme ve Sözleşmeler"))
     yb = mesleki_egitim.ders_yili_baslangici(db)
     if not yb:
         return
@@ -53,7 +77,8 @@ def _yonetmelik_sureleri(db, bugun: date, out: list[Uyari]) -> None:
             kalan = (son - bugun).days
             out.append(Uyari(_kalan_seviye(kalan), "Sözleşme",
                              f"Sözleşmeler yeni ders yılının ikinci haftası sonuna kadar imzalanmalı (md.143); "
-                             f"{n} yerleştirmede sözleşme tarihi yok. Son gün: {tr(son)} ({kalan} gün kaldı)", son))
+                             f"{n} yerleştirmede sözleşme tarihi yok. Son gün: {tr(son)} ({kalan} gün kaldı)", son,
+                             "Yerleştirme ve Sözleşmeler"))
 
 
 def uyarilar(db, bugun: date | None = None) -> list[Uyari]:
@@ -64,31 +89,48 @@ def uyarilar(db, bugun: date | None = None) -> list[Uyari]:
     oy, oa = _onceki_ay(bugun)
     onceki = f"{AYLAR[oa - 1]} {oy}"
 
-    def sureli(konu: str, gun: int, mesaj: str) -> None:
+    def sureli(konu: str, gun: int, mesaj: str, git: str = "") -> None:
         son_gun = ilerideki_is_gunu(date(bugun.year, bugun.month, min(gun, son.day)), tatiller)
         kalan = (son_gun - bugun).days
         if kalan < 0:
             return
         seviye = "Kritik" if kalan <= 2 else "Uyarı" if kalan <= 7 else "Bilgi"
-        out.append(Uyari(seviye, konu, f"{mesaj} Son gün: {tr(son_gun)} ({kalan} gün kaldı)", son_gun))
+        out.append(Uyari(seviye, konu, f"{mesaj} Son gün: {tr(son_gun)} ({kalan} gün kaldı)", son_gun, git))
 
-    sureli("SGK", db.ayar("muhsgk_son_gun"),
-           f"{onceki} dönemi öğrenci aylık prim ve hizmet belgesi (MUHSGK) verilmeli ve prim ödenmeli.")
+    if not sgk_risk.aphb_verildi(db, oy, oa) and sigorta.aylik_liste(db, oy, oa):
+        sureli("SGK", db.ayar("muhsgk_son_gun"),
+               f"{onceki} dönemi öğrenci aylık prim ve hizmet belgesi (MUHSGK) verilmeli ve prim ödenmeli: SGK > "
+               "Aylık Beyan (Adım Adım) sekmesindeki sırayı izleyin.", SGK_EKRANI)
     sureli("Devlet Katkısı", db.ayar("dekont_teslim_son_gun"),
-           f"{onceki} dönemi öğrenci ücret dekontları işletmelerden toplanmalı.")
+           f"{onceki} dönemi öğrenci ücret dekontları işletmelerden toplanmalı.", "Öğrenci Ücreti ve Devlet Katkısı")
     sureli("Devlet Katkısı", db.ayar("dk_sisteme_giris_son_gun"),
-           f"{onceki} dönemi devlet katkısı bilgileri e-Okul / e-Mesem'e girilmeli.")
+           f"{onceki} dönemi devlet katkısı bilgileri e-Okul / e-Mesem'e girilmeli.", "Öğrenci Ücreti ve Devlet Katkısı")
 
     for b in sigorta.bekleyen_bildirimler(db, bugun):
+        kalan = (b.son_tarih - bugun).days
         if b.gecikti:
             seviye = "Kritik"
-        elif (b.son_tarih - bugun).days <= 3:
+        elif kalan <= 3:
             seviye = "Uyarı"
         else:
             seviye = "Bilgi"
         islem = "işe giriş" if b.tur == "Giriş" else "işten ayrılış"
-        durum = "SÜRESİ GEÇTİ" if b.gecikti else f"son gün {tr(b.son_tarih)}"
-        out.append(Uyari(seviye, "SGK", f"{b.ogrenci} ({b.sinif}) {islem} bildirgesi - {durum}", b.son_tarih))
+        if b.gecikti:
+            durum = "SÜRESİ GEÇTİ: bugün verin (30 gün içinde kendiliğinden verilirse ceza dörtte bire iner)"
+        elif kalan == 0:
+            durum = "BUGÜN son gün"
+        else:
+            durum = f"son gün {tr(b.son_tarih)} ({kalan} gün kaldı)"
+        out.append(Uyari(seviye, "SGK", f"{b.ogrenci} ({b.sinif}) {islem} bildirgesi - {durum}", b.son_tarih,
+                         SGK_EKRANI))
+
+    for r in sgk_risk.analiz(db, bugun):
+        if r.seviye == "Bilgi" or r.eylem.startswith("bildirildi:") or "son günü yaklaşıyor" in r.konu \
+                or r.konu.startswith("T.C. kimlik no"):
+            continue
+        out.append(Uyari(r.seviye, "SGK Ceza Riski", f"{r.konu} - {r.kisi}: {r.oneri}"
+                         + (f" (olası ceza ~{para(r.tahmini_ceza)} TL)" if r.tahmini_ceza else ""), r.son_tarih,
+                         SGK_EKRANI))
 
     for x in devam.ozet(db):
         if x.durum == "Sınırı aştı":
@@ -122,11 +164,15 @@ def uyarilar(db, bugun: date | None = None) -> list[Uyari]:
         out.append(Uyari("Uyarı", "Öğrenci", f"Sigortalı {len(gecersiz)} öğrencinin T.C. kimlik numarası geçersiz/eksik: "
                                              + ", ".join(gecersiz[:5]) + (" ..." if len(gecersiz) > 5 else "")))
     _yonetmelik_sureleri(db, bugun, out)
+    from . import sinav_surec
+    out += [Uyari(seviye, "Sınav", mesaj, tarih) for seviye, mesaj, tarih in sinav_surec.hatirlatmalar(db, bugun)]
 
     k = db.kurum()
     if not k["ad"]:
         out.append(Uyari("Bilgi", "Ayarlar", "Kurum bilgileri girilmemiş (Ayarlar > Kurum Bilgileri)."))
 
+    for u in out:
+        u.git = u.git or KONU_EKRANI.get(u.konu, "")
     sira = {"Kritik": 0, "Uyarı": 1, "Bilgi": 2}
     out.sort(key=lambda u: (sira[u.seviye], u.tarih or date.max))
     return out

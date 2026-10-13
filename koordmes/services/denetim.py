@@ -6,7 +6,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from ..mevzuat import FESIH_SAYILAN, OKUL_ICI_TURLER, isletmeye_giden_sinif
+from ..mevzuat import FESIH_SAYILAN, OKUL_ICI_TURLER, isletmeye_giden_sinif, mem_mi
 from . import cerceve, ekders, koordinator, program, sgk_risk, sigorta
 from .utils import gunler_listesi, iban_gecerli, tarih, tc_gecerli
 
@@ -76,7 +76,7 @@ def denetle(db, bugun: date | None = None) -> list[Bulgu]:
           and isletmeye_giden_sinif(r["program"], r["seviye"])], "Yerleştirme ve Sözleşmeler")
 
     # --- yerleştirmeler ---
-    yer = db.q("""SELECT y.*, o.ad, o.soyad, i.ad AS isletme, s.isletme_gunleri, s.ad AS sinif, s.program,
+    yer = db.q("""SELECT y.*, o.ad, o.soyad, o.statu, i.ad AS isletme, s.isletme_gunleri, s.ad AS sinif, s.program,
                          (SELECT COUNT(*) FROM yerlestirmeler y2 WHERE y2.ogrenci_id = y.ogrenci_id
                           AND y2.id != y.id AND y2.isletme_id IS NOT NULL AND y2.baslangic < y.baslangic) AS onceki
                   FROM yerlestirmeler y JOIN ogrenciler o ON o.id = y.ogrenci_id
@@ -197,33 +197,13 @@ def _yonetmelik_yerlestirme(db, bugun: date, isletmede, ekle) -> None:
     """Ortaöğretim Kurumları Yönetmeliği md.134 (gün dağılımı) ve md.143 (sözleşme süreleri, fesih)."""
     from . import mesleki_egitim
     G = "Yerleştirme ve Sözleşmeler"
-    yil_basi = mesleki_egitim.ders_yili_baslangici(db)
-    gecikmis = []
-    for r in isletmede:
-        bas = tarih(r["baslangic"])
-        if r["sozlesme_tarihi"] or not r["isletme_id"] or not bas:
-            continue
-        mem = (r["program"] or "") == "MEM"
-        if mem and r["onceki"]:
-            son = bas + timedelta(days=int(db.ayar("isyeri_degisikligi_gun")))
-        else:
-            ilk = max(bas, yil_basi) if yil_basi else bas
-            son = ilk + timedelta(days=int(db.ayar("mem_sozlesme_sure_gun" if mem else "sozlesme_sure_gun")))
-        if bugun > son:
-            gecikmis.append(f"{_ad(r)} (son gün {son:%d.%m.%Y})")
-    ekle("Kritik", "Sözleşme", "Sözleşme imza süresi geçtiği hâlde sözleşme tarihi girilmemiş (md.143)", gecikmis, G)
+    sureler = mesleki_egitim.sozlesme_sureleri(db)
+    ekle("Kritik", "Sözleşme", "Sözleşme imza süresi geçtiği hâlde sözleşme tarihi girilmemiş (md.143)",
+         [f"{s.ad} (son gün {s.son:%d.%m.%Y})" for s in sureler if s.neden == "Sözleşme" and bugun > s.son], G)
 
     sure = int(db.ayar("isyeri_degisikligi_gun"))
-    bekleyen = []
-    for r in db.q("""SELECT o.ad, o.soyad, MAX(y.bitis) AS bitis FROM ogrenciler o
-                     JOIN siniflar s ON s.id = o.sinif_id JOIN yerlestirmeler y ON y.ogrenci_id = o.id
-                     WHERE o.aktif = 1 AND s.program = 'MEM' AND y.durum != 'Aktif'
-                       AND y.fesih_nedeni = 'İşyeri değişikliği' AND NOT EXISTS (
-                           SELECT 1 FROM yerlestirmeler y2 WHERE y2.ogrenci_id = o.id AND y2.durum = 'Aktif'
-                           AND y2.isletme_id IS NOT NULL) GROUP BY o.id"""):
-        b = tarih(r["bitis"])
-        if b:
-            bekleyen.append((bugun > b + timedelta(days=sure), f"{_ad(r)} (son gün {b + timedelta(days=sure):%d.%m.%Y})"))
+    bekleyen = [(bugun > s.son, f"{s.ad} (son gün {s.son:%d.%m.%Y})") for s in sureler
+                if s.neden == "İşyeri değişikliği"]
     ekle("Kritik", "Sözleşme", f"MEM: işyeri değişikliğinden sonra {sure} gün içinde yeni sözleşme yapılmamış (md.143)",
          [m for g, m in bekleyen if g], G)
     ekle("Uyarı", "Sözleşme", f"MEM: işyeri değiştiren öğrenci için {sure} gün içinde yeni sözleşme yapılmalı (md.143)",
@@ -246,7 +226,7 @@ def _yonetmelik_yerlestirme(db, bugun: date, isletmede, ekle) -> None:
             continue
         if isl & okul:
             cakisan.append(s["ad"])
-        elif (s["program"] or "") != "MEM" and not ({len(isl), len(okul)} == {2, 3}):
+        elif not mem_mi(s["program"]) and not ({len(isl), len(okul)} == {2, 3}):
             gunler.append(f"{s['ad']} ({len(isl)} gün işletme + {len(okul)} gün okul)")
     ekle("Uyarı", "Sınıf", "Okul günleri ile işletme günleri çakışıyor", cakisan, "Sınıflar / Şubeler")
     ekle("Uyarı", "Sınıf", "İşletmede mesleki eğitim haftada 3 gün işletme + 2 gün okul (veya 2+3) olmalı (md.134)",

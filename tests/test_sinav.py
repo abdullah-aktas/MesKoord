@@ -888,8 +888,8 @@ def test_arayuz_bos_veritabaninda_acilir(app, db, mesajlar):
     w = SinavSayfasi(db)
     w.show()
     assert w.donem_id is None
-    assert [w.tabText(i) for i in range(w.count())] == ["Seans Çizelgesi", "Sınavlar ve Öğrenciler", "Öğretmenler",
-                                                        "Salonlar", "Planlama", "Çıktılar"]
+    assert [w.tabText(i) for i in range(w.count())] == ["İş Adımları", "Seans Çizelgesi", "Sınavlar ve Öğrenciler",
+                                                        "Öğretmenler", "Salonlar", "Planlama", "Çıktılar"]
     _sekmeleri_gez(app, w)
     w.seans.olustur()
     w.planlama.planla(True)

@@ -150,6 +150,56 @@ def ders_yili_baslangici(db) -> date | None:
     return tarih(db.kurum()["ders_yili_baslangic"])
 
 
+@dataclass
+class SozlesmeSuresi:
+    yerlestirme_id: int | None
+    ogrenci_id: int
+    ad: str
+    sinif: str
+    son: date
+    mem: bool
+    neden: str  # "Sözleşme" | "İşyeri değişikliği"
+
+
+def sozlesme_sureleri(db) -> list[SozlesmeSuresi]:
+    """Sözleşmesi imzalanmamış işletme yerleştirmeleri ve son imza günü (md.143): MESEM çıraklık sözleşmesi
+    başlangıçtan `mem_sozlesme_sure_gun`, diğerleri ders yılı başından `sozlesme_sure_gun` gün içinde; MESEM'de
+    işyeri değişikliğinde yeni sözleşme `isyeri_degisikligi_gun` gün içinde."""
+    from ..mevzuat import mem_mi
+    yil_basi = ders_yili_baslangici(db)
+    degisiklik = int(db.ayar("isyeri_degisikligi_gun"))
+    out = []
+    for r in db.q("""SELECT y.id, y.ogrenci_id, y.tur, y.baslangic, y.sozlesme_tarihi, y.isletme_id, o.ad, o.soyad,
+                            o.statu, s.ad AS sinif, s.program,
+                            (SELECT COUNT(*) FROM yerlestirmeler y2 WHERE y2.ogrenci_id = y.ogrenci_id
+                             AND y2.id != y.id AND y2.isletme_id IS NOT NULL AND y2.baslangic < y.baslangic) AS onceki
+                     FROM yerlestirmeler y JOIN ogrenciler o ON o.id = y.ogrenci_id
+                     LEFT JOIN siniflar s ON s.id = o.sinif_id WHERE y.durum = 'Aktif'"""):
+        bas = tarih(r["baslangic"])
+        if r["sozlesme_tarihi"] or not r["isletme_id"] or not bas or r["tur"] in OKUL_ICI_TURLER:
+            continue
+        mem = mem_mi(r["program"], r["statu"], r["tur"])
+        if mem and r["onceki"]:
+            son = bas + timedelta(days=degisiklik)
+        else:
+            ilk = max(bas, yil_basi) if yil_basi else bas
+            son = ilk + timedelta(days=int(db.ayar("mem_sozlesme_sure_gun" if mem else "sozlesme_sure_gun")))
+        out.append(SozlesmeSuresi(r["id"], r["ogrenci_id"], f"{r['ad']} {r['soyad']}", r["sinif"] or "", son, mem,
+                                  "Sözleşme"))
+    for r in db.q("""SELECT o.id, o.ad, o.soyad, s.ad AS sinif, MAX(y.bitis) AS bitis FROM ogrenciler o
+                     LEFT JOIN siniflar s ON s.id = o.sinif_id JOIN yerlestirmeler y ON y.ogrenci_id = o.id
+                     WHERE o.aktif = 1 AND (s.program LIKE 'MEM%' OR o.statu IN ('Aday Çırak', 'Çırak', 'Kalfa (MEM 12)')
+                                            OR y.tur = 'Çıraklık') AND y.durum != 'Aktif'
+                       AND y.fesih_nedeni = 'İşyeri değişikliği' AND NOT EXISTS (
+                           SELECT 1 FROM yerlestirmeler y2 WHERE y2.ogrenci_id = o.id AND y2.durum = 'Aktif'
+                           AND y2.isletme_id IS NOT NULL) GROUP BY o.id"""):
+        b = tarih(r["bitis"])
+        if b:
+            out.append(SozlesmeSuresi(None, r["id"], f"{r['ad']} {r['soyad']}", r["sinif"] or "",
+                                      b + timedelta(days=degisiklik), True, "İşyeri değişikliği"))
+    return out
+
+
 def puan_eksikleri(db, donem: int) -> list[str]:
     """İşletmede eğitim gören ve bu dönem işletme notu girilmemiş öğrenciler."""
     rows = db.q("""SELECT DISTINCT o.id, o.ad, o.soyad, s.ad AS sinif, y.tur FROM yerlestirmeler y

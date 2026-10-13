@@ -8,9 +8,10 @@ from PySide6.QtCore import QDate
 from PySide6.QtWidgets import (QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout, QLineEdit)
 
 from ..mevzuat import FESIH_NEDENLERI, FESIH_SAYILAN, YERLESTIRME_TURLERI
-from ..services import belgeler
+from ..services import belgeler, koruma
 from . import ortak
 from .crud import CrudSayfasi, fk_combo, combo_deger
+from .koruma import rehber_goster
 from .varliklar import ISLETME_FK, SINIF_FK, YERLESTIRMELER
 
 
@@ -68,12 +69,17 @@ def _toplu(sayfa: CrudSayfasi, _ids) -> None:
                            SELECT 1 FROM yerlestirmeler y WHERE y.ogrenci_id = o.id AND y.durum = 'Aktif'
                            AND y.tur = ?) ORDER BY o.okul_no""", (sinif_id, d.tur.currentText()))
     on = d.sozlesme.text().strip()
-    for n, o in enumerate(ogrenciler, 1):
-        db.insert("yerlestirmeler", {"ogrenci_id": o["id"], "isletme_id": combo_deger(d.isletme),
-                                     "tur": d.tur.currentText(), "baslangic": bas,
-                                     "sozlesme_no": f"{on}{n:03d}" if on else ""})
-    ortak.bilgi(sayfa, f"{len(ogrenciler)} öğrenci için kayıt oluşturuldu.")
+    ids = [db.insert("yerlestirmeler", {"ogrenci_id": o["id"], "isletme_id": combo_deger(d.isletme),
+                                        "tur": d.tur.currentText(), "baslangic": bas,
+                                        "sozlesme_no": f"{on}{n:03d}" if on else ""})
+           for n, o in enumerate(ogrenciler, 1)]
     sayfa.yenile()
+    rh = koruma.toplu_rehber(db, ids, "Giriş")
+    if rh is None:
+        ortak.bilgi(sayfa, f"{len(ogrenciler)} öğrenci için kayıt oluşturuldu.")
+        return
+    rh.satirlar.insert(0, f"{len(ogrenciler)} öğrenci için kayıt oluşturuldu.")
+    rehber_goster(sayfa, db, rh)
 
 
 def _sona_erdir(sayfa: CrudSayfasi, ids: list[int]) -> None:
@@ -93,10 +99,15 @@ def _sona_erdir(sayfa: CrudSayfasi, ids: list[int]) -> None:
                                               "fesih_nedeni": neden})
     m = "Kayıtlar sona erdirildi. SGK işten ayrılış bildirgesi 'SGK İşlemleri' ekranında listelenir."
     if neden == "İşyeri değişikliği":
-        m += (f"\n\nMEM öğrencileri için yeni işletmeyle {sayfa.db.ayar('isyeri_degisikligi_gun')} gün içinde "
-              "sözleşme imzalanmalıdır (md.143); süre Veri Denetiminde izlenir.")
-    ortak.bilgi(sayfa, m)
+        m += (f"\n\nMESEM öğrencileri için yeni işletmeyle {sayfa.db.ayar('isyeri_degisikligi_gun')} gün içinde "
+              "sözleşme imzalanmalıdır (md.143); süre Ana Sayfa'da gün gün izlenir.")
     sayfa.yenile()
+    rh = koruma.toplu_rehber(sayfa.db, ids, "Çıkış")
+    if rh is None:
+        ortak.bilgi(sayfa, m)
+        return
+    rh.satirlar.insert(0, m)
+    rehber_goster(sayfa, sayfa.db, rh)
 
 
 def _secim(sayfa: CrudSayfasi, _ids) -> None:
@@ -106,8 +117,12 @@ def _secim(sayfa: CrudSayfasi, _ids) -> None:
         s.secim_sekmesi()
 
 
+def _kaydedildi(sayfa, db, kid: int, _d: dict, onceki: dict | None) -> None:
+    rehber_goster(sayfa, db, koruma.yerlestirme_rehberi(db, kid, onceki))
+
+
 def yerlestirme_sayfasi(db) -> CrudSayfasi:
-    v = replace(YERLESTIRMELER, eylemler=[
+    v = replace(YERLESTIRMELER, form_sonrasi=_kaydedildi, eylemler=[
         ("Sözleşme Üret (Word)", lambda s, ids: _belge_uret(s, ids, "isletme_sozlesmesi")),
         ("Çıraklık Sözleşmesi (MEM)", lambda s, ids: _belge_uret(s, ids, "ciraklik_sozlesmesi")),
         ("Değerlendirme Formu", lambda s, ids: _belge_uret(s, ids, "beceri_degerlendirme")),

@@ -103,6 +103,7 @@ Ayrıntılı katmanlar ve ağ protokolü: [El Kitabı 2](GELISTIRICI_EL_KITABI.m
 | Asgari ücret, katsayı, oran güncellemesi | `koordmes/mevzuat.py` → `PARAMETRELER` ([tarif 5.1](GELISTIRICI_EL_KITABI.md#51-yeni-yıl-mevzuat-güncellemesi-asgari-ücret-vb)) |
 | SGK prim günü, eksik gün, belge türü hatası | `koordmes/services/sigorta.py` + `tests/test_hesaplar.py` |
 | SGK XML/Excel dosyası reddedildi (e-Bildirge V2 APHB, 4A toplu işe giriş/işten ayrılış) | `koordmes/services/sgk_dosya.py` + `tests/test_sgk_dosya.py`; SGK şeması değişirse yenisini `koordmes/veri/sgk/EBildirgeV2.xsd` üzerine koyun (e.sgk.gov.tr > Uygulamalar > E-Bildirge V2) |
+| SGK aylık beyan kaydı, beyandan sonra değişenler (iptal + ek düzeltme), belge ve toplu çıkış ön kontrolleri | `koordmes/services/sgk_beyan.py` (tablolar `sgk_beyanlari`, `sgk_beyan_satirlari`) + `koordmes/ui/sayfa_sgk_beyan.py` + `tests/test_sgk_beyan.py` |
 | Öğrenci ücreti / devlet katkısı hatası | `koordmes/services/ucret.py` |
 | Ek ders hesabı | `koordmes/services/ekders.py` |
 | Ders programı yerleştirme algoritması | `koordmes/services/program.py` |

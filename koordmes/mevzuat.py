@@ -215,6 +215,17 @@ PARAMETRELER: list[Parametre] = [
               "Okul uygulaması"),
     Parametre("program_iyilestirme_tur", "Yerleştirme sonrası iyileştirme turu (0: yapılmaz)", "2", "int",
               "Ders Programı", "Süre sınırı içinde taşıma/yer değiştirme ile boşluklar azaltılır"),
+    Parametre("program_kural_gevset", "Kurallara uyularak yerleşmeyen ders kalırsa 'aynı güne gelmesin' ve "
+              "koordinatörlük günü kuralları gevşetilsin (kapalıyken parametrelere kesin uyulur; gevşetmenin "
+              "sonucu yalnızca öneri olarak bildirilir)", "0", "bool", "Ders Programı", "Okul uygulaması"),
+    Parametre("program_beden_muzik_ilk_son", "Beden eğitimi ve müzik dersleri mümkünse haftanın ilk ve son okul "
+              "gününe konsun", "1", "bool", "Ders Programı",
+              "Ortaöğretim Kurumları Yönetmeliği md.12 (bayrak törenleri)"),
+    Parametre("program_teori_sabah", "Teorik dersler öğleden önce, uygulamalı (atölye/lab.) dersler öğleden sonra "
+              "olsun (mümkünse)", "1", "bool", "Ders Programı", "Ortaöğretim Kurumları Yönetmeliği md.12"),
+    Parametre("program_ders_saatleri", "Ders saatlerinin başlangıç-bitişleri (ör. 08:30-09:10, 09:20-10:00, ...)",
+              "", "str", "Ders Programı", "Okul çizelgesi; ders yılı içindeki sınavlarda dersi olan öğretmene o "
+              "saatte sınav görevi verilmez"),
     # [EK-PARAMETRE: DERS PROGRAMI]
 
     # --- Devamsızlık ---
@@ -239,18 +250,35 @@ YERLESTIRME_TURLERI = ["İşletmede Mesleki Eğitim", "Staj", "Çıraklık", "Ta
 OKUL_ICI_TURLER = {"Okulda Alan Eğitimi"}
 
 OGRENCI_STATULERI = ["Öğrenci", "Aday Çırak", "Çırak", "Kalfa (MEM 12)", "Açık Lise"]
+MEM_STATULERI = {"Aday Çırak", "Çırak", "Kalfa (MEM 12)"}
 # MTAL-AMP-11: işletmelerde mesleki eğitime 11. sınıfta başlayan okullar için Anadolu Meslek Programı
-PROGRAMLAR = ["MTAL-AMP", "MTAL-AMP-11", "MTAL-ATP", "MEM"]
+# MAOL: Mesleki Açık Öğretim Lisesi (yüz yüze eğitim / işletmede mesleki eğitim alan açık lise öğrencileri)
+PROGRAMLAR = ["MTAL-AMP", "MTAL-AMP-11", "MTAL-ATP", "MEM", "MAOL"]
+
+
+def mem_mi(program: str | None = None, statu: str | None = None, tur: str | None = None) -> bool:
+    """Mesleki Eğitim Merkezi (MESEM) öğrencisi: aday çırak, çırak, kalfa ya da çıraklık yerleştirmesi."""
+    return (program or "").upper().startswith("MEM") or (statu or "") in MEM_STATULERI or tur == "Çıraklık"
+
+
+def maol_mi(program: str | None = None, statu: str | None = None) -> bool:
+    return (program or "").upper().startswith("MAOL") or (statu or "") == "Açık Lise"
 # İşletmeye yerleştirilmesi gereken sınıflar (siniflar tablosu "s" takma adıyla)
-ISLETMEYE_GIDEN_SINIF_SQL = "(s.seviye >= 12 OR s.program = 'MEM' OR (s.program = 'MTAL-AMP-11' AND s.seviye >= 11))"
+ISLETMEYE_GIDEN_SINIF_SQL = ("((s.seviye >= 12 AND COALESCE(s.program, '') NOT LIKE 'MAOL%') OR s.program LIKE 'MEM%' "
+                             "OR (s.program = 'MTAL-AMP-11' AND s.seviye >= 11))")
 
 
 def isletmeye_giden_sinif(program: str | None, seviye: int | None) -> bool:
+    """MAOL sınıfları 'yerleştirilmemiş' denetimine girmez; işletmeye giden MAOL öğrencisinin kaydı tek tek açılır."""
     program, seviye = (program or ""), (seviye or 0)
-    return seviye >= 12 or program == "MEM" or (program == "MTAL-AMP-11" and seviye >= 11)
+    return (seviye >= 12 and not maol_mi(program)) or mem_mi(program) or (program == "MTAL-AMP-11" and seviye >= 11)
 UNVANLAR = ["Öğretmen", "Atölye/Lab. Öğretmeni", "Müdür Yardımcısı", "Koordinatör Müdür Yardımcısı",
             "Müdür Başyardımcısı", "Müdür"]
 YONETICI_UNVANLARI = {"Müdür Yardımcısı", "Koordinatör Müdür Yardımcısı", "Müdür Başyardımcısı", "Müdür"}
+# Ortaöğretim Kurumları Yönetmeliği md.12: ders programında tercihi dikkate alınacak öğretmenler
+ONCELIKLI_TERCIHLER = ["Engelli", "Engelli yakını (bakmakla yükümlü)", "36 ayını doldurmamış çocuğu var",
+                       "Süt izni kullanıyor"]
+TEDRISAT_TURLERI = ["Tam gün", "Sabahçı", "Öğlenci"]
 
 EKSIK_GUN_NEDENLERI = {
     "01": "İstirahat",

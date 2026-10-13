@@ -15,12 +15,14 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 
 from .. import config
 from ..mevzuat import AYLAR
-from ..services import okuyucu, sinav, sinav_belge
+from ..services import okuyucu, sinav, sinav_belge, sinav_surec
 from ..services.aktarim import norm
 from ..services.belgeler import _guvenli
 from ..services.utils import tarih, tatil_gunleri, tr
 from . import ortak
 from .crud import Alan, CrudSayfasi, FormDialog, Varlik, combo_deger, fk_combo
+from .sayfa_program import YerlesmeyenPenceresi
+from .sayfa_program_surec import DURUM, _aciklama, _hucre, _tablo
 
 RENK_PASIF = QColor("#e9ecef")
 
@@ -29,6 +31,11 @@ DONEM_VARLIK = Varlik("sinav_donemleri", "Sınav Dönemi", [
     Alan("tur", "Sınav türü", "choice", True, secenekler=sinav.DONEM_TURLERI, varsayilan="Sorumluluk"),
     Alan("baslangic", "Başlangıç tarihi", "date"),
     Alan("bitis", "Bitiş tarihi", "date"),
+    Alan("ders_yili_icinde", "Sınavlar ders yılı içinde mi?", "choice", True, secenekler=sinav.DERS_YILI_SECENEKLERI,
+         varsayilan="Otomatik", listede=False,
+         ipucu="Evet ise öğretmen koordinatörlük günü ve (Ayarlar'da ders saatleri girilmişse) dersinin olduğu saatte "
+               "görev almaz; işletme günündeki öğrencinin sınavı mümkünse başka güne konur. Otomatik: dönem ders yılı "
+               "başladıktan sonra ve yaz tatili dışındaysa evet."),
     Alan("ogrenci_gunluk_azami", "Öğrencinin günde en çok sınavı", "int", varsayilan=2,
          ipucu="Uygulamalı sınav olan gün öğrenciye başka sınav konmaz."),
     Alan("ogretmen_gunluk_azami", "Öğretmenin günde en çok görevi", "int", varsayilan=3,
@@ -1156,7 +1163,8 @@ class OgretmenlerSekmesi(_Sekme):
                 ("Günlük Sınır...", self.gunluk_sinir, ""), ("Kapalı Seanslar...", self.kapali_seanslar, ""),
                 ("Nöbet / Müsaitlikten Doldur", self.nobetten_doldur,
                  "Okul nöbet günü ve ders programında tamamen müsait olmadığı günlerin seansları kapalı seanslara "
-                 "eklenir (seçili yoksa bütün öğretmenler)."),
+                 "eklenir; sınavlar ders yılı içindeyse koordinatörlük günleri ve dersinin denk geldiği seanslar da "
+                 "(seçili yoksa bütün öğretmenler)."),
                 ("Önceki Görev...", self.onceki_gorev, "Aynı eğitim yılında bu dönemden önce aldığı sınav görevi "
                                                        "sayısı (yıllık ücretli görev sınırı için).")):
             b = QPushButton(metin)
@@ -1351,7 +1359,8 @@ class OgretmenlerSekmesi(_Sekme):
             return
         n = sinav.nobetten_doldur(self.db, did, self._secili() or None)
         self.yenile()
-        ortak.bilgi(self, f"{n} öğretmenin kapalı seanslarına nöbet / müsait olmadığı günler eklendi.")
+        ortak.bilgi(self, f"{n} öğretmenin kapalı seansları güncellendi (nöbet ve müsait olmadığı günler; sınavlar "
+                          f"ders yılı içindeyse koordinatörlük günleri ve ders saatleri).")
 
     def onceki_gorev(self) -> None:
         did, ids = self.donem_id, self._secili()
@@ -1580,8 +1589,11 @@ class PlanlamaSekmesi(_Sekme):
         self.dugmeler: list[QPushButton] = []
         for metin, fn, ipucu in (
                 ("Hepsini Yap", lambda: self.planla(True),
-                 "Sınavları yerleştirir, görevlileri atar ve öğrencileri salonlara dağıtır."),
+                 "Öğretmenlerin nöbet, koordinatörlük ve ders saatlerini kapalı seanslara işler; sınavları yerleştirir, "
+                 "görevlileri atar, öğrencileri salonlara dağıtır ve planı denetler."),
                 ("Sınavları Yerleştir", lambda: self.planla(False), "Çakılı olmayan sınavları seanslara yerleştirir."),
+                ("Neden Yerleşmedi?", self.nedenler, "Seansa yerleşmeyen sınavların her biri için hangi engelin kaç "
+                                                     "seansı kapattığını, çakışan sınavları ve yapılacakları gösterir."),
                 ("Görevlileri Ata", self.gorevlileri_ata, "Komisyon ve gözcüleri atar; kilitli görevler korunur."),
                 ("Salonlara Yerleştir", self.salonlara_yerlestir, "Yazılı sınav öğrencilerini salon ve sıralara dağıtır."),
                 ("Denetle", self.denetle, "Planı bütün kurallara göre denetler."),
@@ -1671,12 +1683,14 @@ class PlanlamaSekmesi(_Sekme):
             QApplication.restoreOverrideCursor()
 
     @staticmethod
-    def _plan_metni(s: sinav.PlanSonucu) -> list[str]:
-        out = [s.ozet()]
-        out += _metin_listesi("Yerleştirilemeyen sınavlar (nedeniyle):", [f"{ad}: {neden}" for _, ad, neden in
-                                                                        s.yerlesemeyen])
-        out += _metin_listesi("Notlar:", s.notlar)
-        return out
+    def _neden_metni(s: sinav.PlanSonucu) -> list[str]:
+        out = []
+        if s.nedenler:
+            out += ["", "Yerleştirilemeyen sınavlar ve nedenleri (ayrıntı: 'Neden Yerleşmedi?'):"]
+            out += [n.metin() for n in s.nedenler[:15]]
+            if len(s.nedenler) > 15:
+                out.append(f"... ve {len(s.nedenler) - 15} sınav daha")
+        return out + _metin_listesi("Notlar:", s.notlar)
 
     @staticmethod
     def _gorev_metni(g: sinav.GorevSonucu) -> list[str]:
@@ -1705,28 +1719,18 @@ class PlanlamaSekmesi(_Sekme):
         def is_():
             k = db.kopya()
             try:
+                if hepsi:
+                    return sinav_surec.hepsini_yap(k, did, sure_limit=sure, koru=koru)
                 s = sinav.planla(k, did, sure_limit=sure, koru=koru)
-                if not hepsi:
-                    return s, None, None
-                g = sinav.gorevlileri_ata(k, did)
-                try:
-                    salon = sinav.salonlara_yerlestir(k, did)
-                except ValueError as e:
-                    salon = str(e)
-                return s, g, salon
+                return s, [s.ozet()]
             finally:
                 k.close()
 
         def bitti(sonuc):
             self._mesgul(False)
-            s, g, salon = sonuc
-            satirlar = self._plan_metni(s)
-            if g is not None:
-                satirlar += [""] + self._gorev_metni(g)
-            if salon:
-                satirlar += ["", salon]
+            s, satirlar = sonuc
             self._bulgular = {}
-            self._yaz(satirlar)
+            self._yaz(satirlar + self._neden_metni(s))
             self.yenile()
 
         def hata(tb: str):
@@ -1869,6 +1873,35 @@ class PlanlamaSekmesi(_Sekme):
             self._yaz([f"{n} sınavın seans yerleşimi temizlendi."])
             self.yenile()
 
+    def nedenler(self) -> None:
+        did = self.donem_gerekli()
+        if did and not self._calisiyor:
+            neden_penceresi(self, self.db, did)
+
+
+class SinavNedenPenceresi(YerlesmeyenPenceresi):
+    BASLIKLAR = ["Sınav", "Öğrenci", "Özet"]
+    PENCERE = "Yerleşmeyen Sınavlar ve Nedenleri"
+    EXCEL_SAYFASI = "Yerleşmeyen Sınavlar"
+    EXCEL_IKINCI = "Öğrenci"
+
+    @staticmethod
+    def ikinci(n) -> tuple[str, object, str]:
+        return f"{n.ogrenci} öğrenci", n.ogrenci, f"{n.ogrenci} öğrenci"
+
+
+def neden_penceresi(parent, db, donem_id: int) -> None:
+    QApplication.setOverrideCursor(Qt.WaitCursor)
+    try:
+        nedenler = sinav.yerlesmeme_nedenleri(db, donem_id)
+    finally:
+        QApplication.restoreOverrideCursor()
+    if not nedenler:
+        ortak.bilgi(parent, "Seansa yerleşmemiş (öğrencisi olan) sınav yok.")
+        return
+    SinavNedenPenceresi(nedenler, f"{len(nedenler)} sınav seansa yerleşmedi. Bir satır seçince engeller ve "
+                                  f"yapılacaklar aşağıda görünür.", parent=parent).exec()
+
 
 # ------------------------------------------------------------------ çıktılar
 
@@ -1894,6 +1927,11 @@ class CiktilarSekmesi(_Sekme):
         h.addWidget(b)
         b = QPushButton("Klasörü Aç")
         b.clicked.connect(self.klasoru_ac)
+        h.addWidget(b)
+        b = QPushButton("Görev Ücretlerini Ek Ders Puantajına Aktar")
+        b.setToolTip("Ücretli komisyon ve gözcü görevleri görev günlerine göre 'Sınav Görevi' ek ders kaydı olarak "
+                     "yazılır; yeniden basılırsa önceki aktarımın yerine geçer.")
+        b.clicked.connect(lambda: ekderse_aktar(self, self.db, self.donem_gerekli()))
         h.addWidget(b)
         h.addStretch()
         lay.addLayout(h)
@@ -1954,6 +1992,134 @@ class CiktilarSekmesi(_Sekme):
             ortak.dosya_ac(sinav_belge.klasor(self.db, did))
 
 
+def ekderse_aktar(parent, db, donem_id: int | None) -> None:
+    if not donem_id:
+        return
+    try:
+        a = sinav_surec.ekderse_aktar(db, donem_id)
+    except ValueError as e:
+        ortak.bilgi(parent, str(e))
+        return
+    ortak.bilgi(parent, a.ozet())
+
+
+# ------------------------------------------------------------------ iş adımları
+
+class AdimlarSekmesi(_Sekme):
+    BASLIKLAR = ["No", "İş Adımı", "Durum", "Açıklama"]
+
+    def __init__(self, sayfa):
+        super().__init__(sayfa)
+        lay = QVBoxLayout(self)
+        lay.addWidget(_aciklama(
+            "Sorumluluk / tek ders sınavı bu sırayla hazırlanır; her adımın durumu kendiliğinden denetlenir, satıra "
+            "çift tıklayınca ilgili sekme açılır. 'Hepsini Yap': öğretmenlerin nöbet, koordinatörlük ve ders "
+            "saatlerini kapalı seanslara işler, sınavları yerleştirir, komisyon ve gözcüleri atar, öğrencileri "
+            "salonlara dağıtır ve planı denetler. Yerleşmeyen her sınav için neden ve yapılacaklar verilir."))
+        ust = ortak.AkisDuzeni()
+        for metin, fn, ipucu in (
+                ("Hepsini Yap", self.hepsini_yap, "Planlama sekmesindeki 'Hepsini Yap' ile aynı."),
+                ("Yenile", self.yenile, ""),
+                ("Neden Yerleşmedi?", self.nedenler, "Seansa yerleşmeyen sınavların ayrıntılı nedeni."),
+                ("Kural Önerilerini Ekle", self.kural_onerileri,
+                 "Ortak öğrencisi olan ilişkili dersler (matematik-geometri, fizik-kimya-biyoloji, edebiyat-dil ve "
+                 "anlatım) için 'aynı güne gelmesin' kuralı ekler."),
+                ("Birleştirme Önerileri...", self.birlestirme_onerileri,
+                 "Aynı ders, seviye ve şekilde farklı grup koduyla açılmış sınavları tek sınavda birleştirir."),
+                ("Ek Derse Aktar", lambda: ekderse_aktar(self, self.db, self.donem_gerekli()),
+                 "Ücretli sınav görevlerini görev günlerine göre ek ders puantajına yazar.")):
+            b = QPushButton(metin)
+            b.setToolTip(ipucu)
+            b.clicked.connect(fn)
+            ust.addWidget(b)
+            if metin == "Hepsini Yap":
+                b.setStyleSheet("font-weight:bold")
+        lay.addLayout(ust)
+        self.ozet = QLabel()
+        self.ozet.setWordWrap(True)
+        lay.addWidget(self.ozet)
+        self.tablo = _tablo(self.BASLIKLAR, 3)
+        self.tablo.cellDoubleClicked.connect(lambda i, _: self.git(self._hedef(i)))
+        lay.addWidget(self.tablo, 1)
+        self.adimlar: list[sinav_surec.IsAdimi] = []
+
+    def yenile(self) -> None:
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            self.adimlar = sinav_surec.is_adimlari(self.db, self.donem_id)
+        finally:
+            QApplication.restoreOverrideCursor()
+        self.tablo.setRowCount(len(self.adimlar))
+        for i, a in enumerate(self.adimlar):
+            metin, renk = DURUM[a.durum]
+            for j, v in enumerate([a.no, a.baslik, metin, a.detay]):
+                self.tablo.setItem(i, j, _hucre(v, renk if j == 2 else None, a.git))
+        self.tablo.resizeRowsToContents()
+        tamam = sum(1 for a in self.adimlar if a.durum is True)
+        zorunlu = sum(1 for a in self.adimlar if a.durum is not None)
+        eksik = [a for a in self.adimlar if a.durum is False]
+        self.ozet.setText(f"<b>{tamam}/{zorunlu} adım tamam.</b>" +
+                          (f" Sıradaki: {eksik[0].no}. {eksik[0].baslik}" if eksik else ""))
+
+    def _hedef(self, satir: int) -> str:
+        it = self.tablo.item(satir, 0)
+        return it.data(Qt.UserRole) if it else ""
+
+    def git(self, hedef: str) -> QWidget | None:
+        if not hedef:
+            return None
+        if hedef == sinav_surec.DONEM_AYARI:
+            (self.sayfa.donem_duzenle if self.donem_id else self.sayfa.donem_yeni)()
+            self.yenile()
+            return None
+        for i in range(self.sayfa.count()):
+            if self.sayfa.tabText(i) == hedef:
+                self.sayfa.setCurrentIndex(i)
+                return self.sayfa.widget(i)
+        pencere = self.window()
+        return pencere.git(hedef) if hasattr(pencere, "git") else None
+
+    def hepsini_yap(self) -> None:
+        if self.donem_gerekli():
+            self.sayfa.setCurrentWidget(self.sayfa.planlama)
+            self.sayfa.planlama.planla(True)
+
+    def nedenler(self) -> None:
+        did = self.donem_gerekli()
+        if did:
+            neden_penceresi(self, self.db, did)
+
+    def kural_onerileri(self) -> None:
+        did = self.donem_gerekli()
+        if not did:
+            return
+        oneriler = sinav_surec.kural_onerileri(self.db, did)
+        if not oneriler:
+            ortak.bilgi(self, "Eklenecek kural önerisi yok (ilişkili derslerin ortak öğrencisi yok ya da kuralları "
+                              "zaten var).")
+            return
+        metin = "\n".join(f"- {o.ders1} / {o.ders2}: {o.ortak} ortak öğrenci ({o.neden})" for o in oneriler)
+        if ortak.onay(self, f"Şu dersler için 'ortak öğrencisi varsa aynı güne gelmesin' kuralı eklensin mi?\n{metin}"):
+            sinav_surec.kural_onerilerini_ekle(self.db, did)
+            self.yenile()
+
+    def birlestirme_onerileri(self) -> None:
+        did = self.donem_gerekli()
+        if not did:
+            return
+        oneriler = sinav_surec.birlestirme_onerileri(self.db, did)
+        if not oneriler:
+            ortak.bilgi(self, "Birleştirilebilecek sınav yok.")
+            return
+        metin = "\n".join(f"- {o.etiket}: {' + '.join(o.gruplar)} ({o.ogrenci} öğrenci)" for o in oneriler)
+        if ortak.onay(self, f"Aşağıdaki sınavlar tek sınavda birleştirilsin mi? Öğrencileri en kalabalık sınava "
+                            f"taşınır, diğerleri silinir (önce yedek alınır).\n{metin}"):
+            self.db.yedekle()
+            n = sum(sinav.sinavlari_birlestir(self.db, o.sinav_ids) for o in oneriler)
+            ortak.bilgi(self, f"{len(oneriler)} sınav grubu birleştirildi, {n} öğrenci kaydı taşındı.")
+            self.yenile()
+
+
 # ------------------------------------------------------------------ sayfa
 
 class SinavSayfasi(QTabWidget):
@@ -1975,18 +2141,20 @@ class SinavSayfasi(QTabWidget):
             b.clicked.connect(fn)
             h.addWidget(b)
         self.setCornerWidget(kose, Qt.TopRightCorner)
+        self.adimlar = AdimlarSekmesi(self)
         self.seans = SeansSekmesi(self)
         self.sinavlar = SinavlarSekmesi(self)
         self.ogretmenler = OgretmenlerSekmesi(self)
         self.salonlar = CrudSayfasi(db, SALON_VARLIK)
         self.planlama = PlanlamaSekmesi(self)
         self.ciktilar = CiktilarSekmesi(self)
-        self.addTab(self.seans, "Seans Çizelgesi")
-        self.addTab(self.sinavlar, "Sınavlar ve Öğrenciler")
-        self.addTab(self.ogretmenler, "Öğretmenler")
-        self.addTab(self.salonlar, "Salonlar")
-        self.addTab(self.planlama, "Planlama")
-        self.addTab(self.ciktilar, "Çıktılar")
+        self.addTab(self.adimlar, sinav_surec.SEKME_ADIMLAR)
+        self.addTab(self.seans, sinav_surec.SEKME_SEANS)
+        self.addTab(self.sinavlar, sinav_surec.SEKME_SINAVLAR)
+        self.addTab(self.ogretmenler, sinav_surec.SEKME_OGRETMENLER)
+        self.addTab(self.salonlar, sinav_surec.SEKME_SALONLAR)
+        self.addTab(self.planlama, sinav_surec.SEKME_PLANLAMA)
+        self.addTab(self.ciktilar, sinav_surec.SEKME_CIKTILAR)
         self.donemleri_doldur()
 
     @property

@@ -3,15 +3,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..mevzuat import OKUL_ICI_TURLER
+from ..mevzuat import OKUL_ICI_TURLER, mem_mi
 from .sigorta import eksik_gunler, kapsanan_gunler, prim_gun_sayisi
 from .utils import ay_araligi, tarih, yuvarla
-
-MEM_STATULERI = {"Aday Çırak", "Çırak", "Kalfa (MEM 12)"}
-
-
-def mem_mi(program: str | None, statu: str | None) -> bool:
-    return (program or "").upper().startswith("MEM") or (statu in MEM_STATULERI)
 
 
 def en_az_ucret_orani(db, mem: bool, statu: str | None, personel: int) -> tuple[float, str]:

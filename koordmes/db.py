@@ -261,6 +261,21 @@ CREATE TABLE IF NOT EXISTS ders_mekanlari (
     atolye_id INTEGER NOT NULL REFERENCES atolyeler(id) ON DELETE CASCADE
 );
 -- [EK-TABLO: DERS PROGRAMI]
+-- e-Bildirge'ye verilmiş aylık prim ve hizmet belgelerinin (asıl / ek / iptal) satır satır kaydı; verildikten
+-- sonra değişen kayıtlar için iptal + ek belge bu kayıtla hesaplanır.
+CREATE TABLE IF NOT EXISTS sgk_beyanlari (
+    id INTEGER PRIMARY KEY, donem TEXT NOT NULL, mahiyet TEXT NOT NULL DEFAULT 'A', tahakkuk TEXT DEFAULT 'A',
+    tarih TEXT NOT NULL, kisi INTEGER DEFAULT 0, aciklama TEXT DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS sgk_beyan_satirlari (
+    id INTEGER PRIMARY KEY, beyan_id INTEGER NOT NULL REFERENCES sgk_beyanlari(id) ON DELETE CASCADE,
+    ogrenci_id INTEGER REFERENCES ogrenciler(id) ON DELETE SET NULL,
+    tc TEXT NOT NULL, ad TEXT DEFAULT '', soyad TEXT DEFAULT '', belge TEXT NOT NULL, kanun TEXT DEFAULT '00000',
+    gun INTEGER DEFAULT 0, pek REAL DEFAULT 0, giris TEXT, cikis TEXT, eksik_gun INTEGER DEFAULT 0,
+    eksik_neden TEXT DEFAULT '', cikis_nedeni TEXT DEFAULT '', meslek TEXT DEFAULT '', okul_ici INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS ix_sgk_beyan_donem ON sgk_beyanlari(donem);
+CREATE INDEX IF NOT EXISTS ix_sgk_beyan_satir ON sgk_beyan_satirlari(beyan_id);
 -- [EK-TABLO: SGK]
 -- [EK-TABLO: MES]
 
@@ -305,6 +320,7 @@ EK_KOLONLAR = [
     ("ogrenciler", "dogum_yeri", "TEXT DEFAULT ''"),
     ("ogrenciler", "nufus_il", "TEXT DEFAULT ''"),
     ("ogrenciler", "nufus_ilce", "TEXT DEFAULT ''"),
+    ("ogrenciler", "baska_sigortali", "INTEGER DEFAULT 0"),
     ("koordinator_gorevleri", "saatler", "TEXT DEFAULT ''"),
     ("sinav_donemleri", "uygulama_saati", "TEXT DEFAULT ''"),
     ("sinav_donemleri", "sozlu_saati", "TEXT DEFAULT ''"),
@@ -328,6 +344,7 @@ EK_KOLONLAR = [
     ("sinav_gorevlileri", "durum", "TEXT DEFAULT ''"),
     ("sinav_kurallari", "tur", "TEXT DEFAULT 'ortak_ogrenci'"),
     ("sinav_ogretmenleri", "onceki_gorev", "INTEGER DEFAULT 0"),
+    ("sinav_donemleri", "ders_yili_icinde", "TEXT DEFAULT 'Otomatik'"),
     # [EK-KOLON: SINAV]
     ("ogretmenler", "kulup", "TEXT DEFAULT ''"),
     ("ogretmenler", "sef", "INTEGER DEFAULT 0"),
@@ -343,6 +360,7 @@ EK_KOLONLAR = [
     ("siniflar", "tedrisat", "TEXT DEFAULT 'Tam gün'"),
     ("program_ders_gruplari", "siniflar", "TEXT DEFAULT ''"),
     ("program_ders_gruplari", "kesin", "INTEGER DEFAULT 0"),
+    ("ogretmenler", "oncelikli_tercih", "TEXT DEFAULT ''"),
     # [EK-KOLON: DERS PROGRAMI]
     # [EK-KOLON: SGK]
     # [EK-KOLON: MES]

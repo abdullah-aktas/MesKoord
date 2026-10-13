@@ -22,15 +22,14 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
 from .. import config
-from ..mevzuat import OKUL_ICI_TURLER
+from ..mevzuat import MEM_STATULERI as CIRAK_STATULERI, OKUL_ICI_TURLER, mem_mi
 from . import sigorta
-from .sgk_risk import aphb_anahtari, aphb_son_gunu
+from .sgk_risk import aphb_son_gunu, aphb_verildi
 from .utils import tarih, tc_gecerli
 
 XSD_APHB = Path(__file__).resolve().parents[1] / "veri" / "sgk" / "EBildirgeV2.xsd"
 MAHIYETLER = {"A": "Asıl", "E": "Ek", "I": "İptal"}
 TAHAKKUK_NEDENLERI = {"A": "Yasal süresi içinde verilen", "B": "Yasal süresi dışında verilen"}
-CIRAK_STATULERI = {"Aday Çırak", "Çırak", "Kalfa (MEM 12)"}
 _TAB = "\t"
 _SATIR = "\r\n"
 
@@ -155,6 +154,7 @@ class AphbSatiri:
     cikis_nedeni: str
     meslek: str
     okul_ici: bool
+    ogrenci_id: int | None = None
 
 
 def tahakkuk_nedeni(db, yil: int, ay: int, bugun: date | None = None) -> str:
@@ -176,7 +176,8 @@ def aphb_satirlari(db, yil: int, ay: int, uyarilar: list[str] | None = None) -> 
         soyad = _kisalt(tr_buyuk(s.soyad), 18, uyarilar, kim, "soyad")
         out.append(AphbSatiri(str(s.belge_turu).zfill(2), kanun, s.tc, ad, soyad, s.pek, s.gun, s.giris_tarihi,
                               s.cikis_tarihi, s.eksik_gun, s.eksik_neden if s.eksik_gun else "",
-                              cikis_nedeni if s.cikis_tarihi else "", meslek, _okul_ici_belge(db, s.belge_turu)))
+                              cikis_nedeni if s.cikis_tarihi else "", meslek, _okul_ici_belge(db, s.belge_turu),
+                              s.ogrenci_id))
     out.sort(key=lambda r: (r.belge, r.kanun, r.ad, r.soyad))
     return out
 
@@ -287,16 +288,11 @@ def _aphb_excel(isy: Isyeri, yil: int, ay: int, mahiyet: str, tahakkuk: str, sat
     return yol
 
 
-def aphb_dosyalari(db, yil: int, ay: int, klasor: Path | str | None = None, bicim: str = "xml",
-                   mahiyet: str = "A", tahakkuk: str | None = None, bugun: date | None = None) -> DosyaSonucu:
-    """bicim: 'xml' | 'excel'. Her işyeri için ayrı dosya."""
-    if mahiyet not in MAHIYETLER:
-        raise SgkDosyaHatasi(f"Belge mahiyeti A, E veya I olmalı: {mahiyet}")
-    tahakkuk = tahakkuk or tahakkuk_nedeni(db, yil, ay, bugun)
-    sonuc = DosyaSonucu()
-    satirlar = aphb_satirlari(db, yil, ay, sonuc.uyarilar)
-    if not satirlar:
-        raise SgkDosyaHatasi(f"{ay:02d}/{yil} döneminde bildirilecek sigortalı öğrenci yok.")
+def aphb_yaz(db, yil: int, ay: int, satirlar: list[AphbSatiri], mahiyet: str, tahakkuk: str,
+             klasor: Path | str | None = None, bicim: str = "xml", temel: str | None = None,
+             sonuc: DosyaSonucu | None = None) -> DosyaSonucu:
+    """Verilen satırlarla APHB dosyalarını yazar (her işyeri için ayrı dosya); sonuc verilirse ona eklenir."""
+    sonuc = sonuc if sonuc is not None else DosyaSonucu()
     isyerleri = _isyerleri(db, [r.okul_ici for r in satirlar])
     gruplar: dict[str, tuple[Isyeri, list[AphbSatiri]]] = {}
     for r in satirlar:
@@ -304,8 +300,8 @@ def aphb_dosyalari(db, yil: int, ay: int, klasor: Path | str | None = None, bici
         gruplar.setdefault(isy.etiket, (isy, []))[1].append(r)
     coklu = len(gruplar) > 1
     hedef = _klasor(klasor)
+    temel = temel or f"e-Bildirge APHB {yil}-{ay:02d} {MAHIYETLER[mahiyet]}"
     for isy, grup in gruplar.values():
-        temel = f"e-Bildirge APHB {yil}-{ay:02d} {MAHIYETLER[mahiyet]}"
         if bicim == "excel":
             yol = _aphb_excel(isy, yil, ay, mahiyet, tahakkuk, grup, hedef / _dosya_adi(temel, isy, coklu, "xlsx"))
         else:
@@ -315,15 +311,39 @@ def aphb_dosyalari(db, yil: int, ay: int, klasor: Path | str | None = None, bici
             if hatalar:
                 sonuc.uyarilar[:0] = [f"{yol.name} SGK şemasına uymuyor: {h}" for h in hatalar]
         sonuc.yollar.append(yol)
-    sonuc.kisi = len(satirlar)
+    sonuc.kisi += len(satirlar)
     if any(len(isy.unvan) > 50 or len(isy.adres) > 50 for isy, _ in gruplar.values()):
-        sonuc.uyarilar.append("e-Bildirge işyeri ünvanı/adresi en çok 50 karakter alır; dosyada kısaltıldı.")
+        uyari = "e-Bildirge işyeri ünvanı/adresi en çok 50 karakter alır; dosyada kısaltıldı."
+        if uyari not in sonuc.uyarilar:
+            sonuc.uyarilar.append(uyari)
+    return sonuc
+
+
+def aphb_dosyalari(db, yil: int, ay: int, klasor: Path | str | None = None, bicim: str = "xml",
+                   mahiyet: str = "A", tahakkuk: str | None = None, bugun: date | None = None) -> DosyaSonucu:
+    """bicim: 'xml' | 'excel'. Her işyeri için ayrı dosya. İptal belgesi, kayıtlı beyan varsa beyan edilen
+    satırlarla (SGK'daki değerlerle) hazırlanır."""
+    from .sgk_beyan import beyan_edilen
+    if mahiyet not in MAHIYETLER:
+        raise SgkDosyaHatasi(f"Belge mahiyeti A, E veya I olmalı: {mahiyet}")
+    tahakkuk = tahakkuk or tahakkuk_nedeni(db, yil, ay, bugun)
+    sonuc = DosyaSonucu()
+    beyan = list(beyan_edilen(db, yil, ay).values()) if mahiyet == "I" else []
+    if beyan:
+        satirlar = sorted(beyan, key=lambda r: (r.belge, r.kanun, r.ad, r.soyad))
+        sonuc.uyarilar.append("İptal belgesi, programda kayıtlı beyandaki (SGK'ya verilen) değerlerle hazırlandı. "
+                              "Yalnızca değişen kişiler için SGK > Aylık Beyan sekmesindeki düzeltmeyi kullanın.")
+    else:
+        satirlar = aphb_satirlari(db, yil, ay, sonuc.uyarilar)
+    if not satirlar:
+        raise SgkDosyaHatasi(f"{ay:02d}/{yil} döneminde bildirilecek sigortalı öğrenci yok.")
+    aphb_yaz(db, yil, ay, satirlar, mahiyet, tahakkuk, klasor, bicim, sonuc=sonuc)
     if tahakkuk == "B":
         sonuc.uyarilar.append(f"{ay:02d}/{yil} belgesinin yasal süresi ({aphb_son_gunu(db, yil, ay):%d.%m.%Y}) "
                               "geçti; tahakkuk nedeni B (yasal süresi dışında) yazıldı, idari para cezası doğabilir.")
-    if db.ayar(aphb_anahtari(yil, ay)) and mahiyet == "A":
-        sonuc.uyarilar.append(f"{ay:02d}/{yil} belgesi verildi olarak işaretli; eksik kalan sigortalılar için "
-                              "'Ek' mahiyetinde belge gerekir.")
+    if aphb_verildi(db, yil, ay) and mahiyet == "A":
+        sonuc.uyarilar.append(f"{ay:02d}/{yil} belgesi verildi olarak işaretli; değişen ya da eksik kalan "
+                              "sigortalılar için 'İptal' + 'Ek' mahiyetinde düzeltme gerekir (SGK > Aylık Beyan).")
     return sonuc
 
 
@@ -343,7 +363,7 @@ class BildirgeSatiri:
 
 
 def sigorta_kolu(db, tur: str, statu: str | None, program: str | None) -> str:
-    if tur == "Çıraklık" or (statu or "") in CIRAK_STATULERI or (program or "").upper().startswith("MEM"):
+    if mem_mi(program, statu, tur):
         return str(db.ayar("sgk_sigorta_kolu_mem"))
     if tur in OKUL_ICI_TURLER or tur == "Tamamlayıcı Eğitim":
         return str(db.ayar("sgk_sigorta_kolu_okul"))
@@ -355,7 +375,7 @@ def _bildirge_satirlari(db, yerlestirme_idleri: list[int], tur: str, uyarilar: l
         return []
     soru = ",".join("?" * len(yerlestirme_idleri))
     rows = db.q(f"""SELECT y.id, y.tur, y.baslangic, y.bitis, y.ogrenci_id, o.tc, o.ad, o.soyad, o.statu,
-                           o.bakmakla_yukumlu, s.program
+                           o.bakmakla_yukumlu, o.baska_sigortali, o.dogum_tarihi, s.program
                     FROM yerlestirmeler y JOIN ogrenciler o ON o.id = y.ogrenci_id
                     LEFT JOIN siniflar s ON s.id = o.sinif_id WHERE y.id IN ({soru})
                     ORDER BY o.ad, o.soyad""", tuple(yerlestirme_idleri))
@@ -372,7 +392,7 @@ def _bildirge_satirlari(db, yerlestirme_idleri: list[int], tur: str, uyarilar: l
         out.append(BildirgeSatiri(r["id"], r["tc"], _kisalt(tr_buyuk(r["ad"]), 50, uyarilar, kim, "ad"),
                                   _kisalt(tr_buyuk(r["soyad"]), 50, uyarilar, kim, "soyad"), t,
                                   sigorta_kolu(db, r["tur"], r["statu"], r["program"]), r["tur"] in OKUL_ICI_TURLER,
-                                  sigorta.belge_turu(db, r["tur"], bool(r["bakmakla_yukumlu"])), r["ogrenci_id"]))
+                                  sigorta.belge_turu(db, r["tur"], sigorta.gss_primi_yok(db, r, t)), r["ogrenci_id"]))
     return out
 
 
@@ -418,7 +438,7 @@ def cikis_donemleri(db, r: BildirgeSatiri) -> tuple[DonemBilgisi, DonemBilgisi]:
     simdi = _donem_bilgisi(sigorta.aylik_liste(db, y, a), r.ogrenci_id, r.belge) or DonemBilgisi(r.belge)
     oy, oa = (y, a - 1) if a > 1 else (y - 1, 12)
     once = DonemBilgisi()
-    if r.tarih <= aphb_son_gunu(db, oy, oa) and not db.ayar(aphb_anahtari(oy, oa)):
+    if r.tarih <= aphb_son_gunu(db, oy, oa) and not aphb_verildi(db, oy, oa):
         once = _donem_bilgisi(sigorta.aylik_liste(db, oy, oa), r.ogrenci_id, r.belge) or once
     return simdi, once
 

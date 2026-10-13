@@ -37,8 +37,8 @@ def test_karsilastirma_ekrani(app, ornek_db, tmp_path):
     wb.save(tmp_path / "aphb.xlsx")
 
     sayfa = SgkSayfasi(db)
-    k = sayfa.widget(2)
-    sayfa.setCurrentIndex(2)
+    k = sayfa.widget(3)
+    sayfa.setCurrentIndex(3)
     sayfa.show()
     k.yukle([tmp_path / "aphb.xlsx"])
     assert k.sonuc is not None and k.ay.deger() == (2026, 10)
@@ -58,8 +58,8 @@ def test_risk_ekrani(app, db):
     db.insert("yerlestirmeler", {"ogrenci_id": ogr, "baslangic": "2026-01-05", "sigorta_giris_bildirildi": 1,
                                  "sigorta_giris_bildirim_tarihi": "2026-01-02"})
     sayfa = SgkSayfasi(db)
-    r = sayfa.widget(3)
-    sayfa.setCurrentIndex(3)
+    r = sayfa.widget(4)
+    sayfa.setCurrentIndex(4)
     sayfa.show()
     i = next(i for i, x in enumerate(r.riskler) if x.eylem == "yukumlu_kaldir")
     _sec(r.view, [r.proxy.mapFromSource(r.model.index(i, 0)).row()])

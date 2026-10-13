@@ -65,6 +65,24 @@ def eksik_gunler(db, ogrenci_id: int, gunler: set[date]) -> tuple[int, str]:
     return gun, ("12" if len(kodlar) > 1 else next(iter(kodlar)))
 
 
+def yas_doldugu_gun(dogum: date, yas: int) -> date:
+    try:
+        return dogum.replace(year=dogum.year + yas)
+    except ValueError:  # 29 Şubat
+        return date(dogum.year + yas, 3, 1)
+
+
+def gss_primi_yok(db, r, gun: date) -> bool:
+    """Belge 7/49 (yalnız kısa vadeli, prim %1): kendi işinden sigortalı ya da `gun` tarihinde hâlâ ana/babası
+    üzerinden bakmakla yükümlü olunan öğrenci. Yaş sınırını o güne kadar dolduran 42/50 ile bildirilir."""
+    if "baska_sigortali" in r.keys() and r["baska_sigortali"]:
+        return True
+    if not r["bakmakla_yukumlu"]:
+        return False
+    d = tarih(r["dogum_tarihi"]) if "dogum_tarihi" in r.keys() else None
+    return d is None or yas_doldugu_gun(d, int(db.ayar("gss_yukumlu_yas"))) > gun
+
+
 def belge_turu(db, yerlestirme_turu: str, bakmakla_yukumlu: bool) -> str:
     if yerlestirme_turu in OKUL_ICI_TURLER:
         return str(db.ayar("belge_okul_yukumlu" if bakmakla_yukumlu else "belge_okul_degil"))
@@ -101,7 +119,8 @@ class SigortaSatiri:
 
 def _yerlestirmeler(db, bas: date, bit: date):
     return db.q(
-        """SELECT y.*, o.tc, o.ad, o.soyad, o.bakmakla_yukumlu, s.ad AS sinif, i.ad AS isletme
+        """SELECT y.*, o.tc, o.ad, o.soyad, o.bakmakla_yukumlu, o.baska_sigortali, o.dogum_tarihi, s.ad AS sinif,
+                  i.ad AS isletme
            FROM yerlestirmeler y JOIN ogrenciler o ON o.id = y.ogrenci_id
            LEFT JOIN siniflar s ON s.id = o.sinif_id LEFT JOIN isletmeler i ON i.id = y.isletme_id
            WHERE y.baslangic IS NOT NULL AND y.baslangic <= ? AND (y.bitis IS NULL OR y.bitis = '' OR y.bitis >= ?)
@@ -113,7 +132,7 @@ def aylik_liste(db, yil: int, ay: int) -> list[SigortaSatiri]:
     gruplar: dict[tuple[int, str], dict] = {}
     pek_gunluk = gunluk_pek(db)
     for y in _yerlestirmeler(db, ilk, son):
-        yukumlu = bool(y["bakmakla_yukumlu"])
+        yukumlu = gss_primi_yok(db, y, ilk)
         bt = belge_turu(db, y["tur"], yukumlu)
         key = (y["ogrenci_id"], bt)
         g = gruplar.setdefault(key, {"row": y, "gunler": set(), "isletmeler": [], "yukumlu": yukumlu,
@@ -182,7 +201,8 @@ def bekleyen_bildirimler(db, bugun: date | None = None, ileri_gun: int = 30,
     olanlar da (bildirildi=True) listelenir."""
     bugun = bugun or date.today()
     rows = db.q(
-        """SELECT y.*, o.tc, o.ad, o.soyad, o.okul_no, o.bakmakla_yukumlu, s.ad AS sinif, i.ad AS isletme
+        """SELECT y.*, o.tc, o.ad, o.soyad, o.okul_no, o.bakmakla_yukumlu, o.baska_sigortali, o.dogum_tarihi,
+                  s.ad AS sinif, i.ad AS isletme
            FROM yerlestirmeler y JOIN ogrenciler o ON o.id = y.ogrenci_id
            LEFT JOIN siniflar s ON s.id = o.sinif_id LEFT JOIN isletmeler i ON i.id = y.isletme_id
            WHERE y.baslangic IS NOT NULL""")
@@ -196,7 +216,8 @@ def bekleyen_bildirimler(db, bugun: date | None = None, ileri_gun: int = 30,
     for r in rows:
         b, e = tarih(r["baslangic"]), tarih(r["bitis"])
         digerleri = [x for x in by_ogr[r["ogrenci_id"]] if x["id"] != r["id"]]
-        bt = belge_turu(db, r["tur"], bool(r["bakmakla_yukumlu"]))
+        bt = belge_turu(db, r["tur"], gss_primi_yok(db, r, b or bugun))
+        bt_cikis = belge_turu(db, r["tur"], gss_primi_yok(db, r, e)) if e else bt
         ad = f"{r['ad']} {r['soyad']}"
         yeni = lambda tur, olay, son, bildirildi, bt_: Bildirim(
             r["id"], tur, ad, r["tc"] or "", r["sinif"] or "", r["isletme"] or "", olay, son,
@@ -213,12 +234,12 @@ def bekleyen_bildirimler(db, bugun: date | None = None, ileri_gun: int = 30,
         if e and e <= bugun + timedelta(days=ileri_gun):
             if r["sigorta_cikis_bildirildi"]:
                 if dahil_bildirilen:
-                    out.append(yeni("Çıkış", e, e + timedelta(days=cikis_sure), True, bt))
+                    out.append(yeni("Çıkış", e, e + timedelta(days=cikis_sure), True, bt_cikis))
             elif not any(tarih(x["baslangic"]) and e < tarih(x["baslangic"]) <= e + timedelta(days=DEVAM_ARALIK_GUN)
                          or (tarih(x["baslangic"]) and tarih(x["baslangic"]) <= e and
                              (tarih(x["bitis"]) is None or tarih(x["bitis"]) > e))
                          for x in digerleri):
-                out.append(yeni("Çıkış", e, e + timedelta(days=cikis_sure), False, bt))
+                out.append(yeni("Çıkış", e, e + timedelta(days=cikis_sure), False, bt_cikis))
     out.sort(key=lambda x: (x.bildirildi, x.son_tarih))
     return out
 

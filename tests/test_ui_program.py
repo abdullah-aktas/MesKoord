@@ -25,8 +25,8 @@ def test_program_ekrani_belgeden_yukler(app, db, tmp_path):
     wb.save(tmp_path / "program.xlsx")
 
     sayfa = ProgramSayfasi(db)
-    p = sayfa.widget(1)
-    sayfa.setCurrentIndex(1)
+    p = sayfa.widget(2)
+    sayfa.setCurrentIndex(2)
     sayfa.show()
     sonuclar = p.belge_yukle([tmp_path / "program.xlsx"], sormadan=True)
     assert sum(s.eklenen for s in sonuclar) == 3
@@ -54,10 +54,11 @@ def test_nobet_ve_ozel_durumlar(app, db):
     ders = db.insert("dersler", {"ad": "Programlama"})
     atama = db.insert("ders_atamalari", {"sinif_id": sinif, "ders_id": ders, "ogretmen_id": ali, "haftalik_saat": 2})
     sayfa = ProgramSayfasi(db)
-    assert sayfa.count() == 5 and sayfa.tabText(1) == "Sınıf / Öğretmen / Mekan"
-    assert sayfa.widget(1).__class__.__name__ == "ProgramTablosu"
+    assert sayfa.count() == 6 and sayfa.tabText(2) == "Sınıf / Öğretmen / Mekan"
+    assert sayfa.widget(2).__class__.__name__ == "ProgramTablosu"
+    assert sayfa.tabText(0) == "İş Adımları ve Mevzuat"
 
-    nobet = sayfa.widget(3)
+    nobet = sayfa.widget(4)
     nobet.yukle()
     nobet.tablo.cellWidget(0, 1).setCurrentIndex(1)
     nobet.tablo.item(0, 2).setText("Bahçe")
@@ -66,7 +67,7 @@ def test_nobet_ve_ozel_durumlar(app, db):
     r = db.q1("SELECT nobet_gun, nobet_yeri, sinif_ogretmenligi FROM ogretmenler WHERE id = ?", (ali,))
     assert (r["nobet_gun"], r["nobet_yeri"], r["sinif_ogretmenligi"]) == (1, "Bahçe", "9A")
 
-    ozel = sayfa.widget(4)
+    ozel = sayfa.widget(5)
     ozel.yukle()
     ozel.siniflar.item(0, 1).setText("Pzt, Sal")
     ozel.siniflar.item(0, 2).setText("Çar, Per, Cum")

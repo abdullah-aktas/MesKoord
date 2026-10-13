@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable
 
-from ..mevzuat import AYLAR, GUNLER, OKUL_ICI_TURLER, YERLESTIRME_TURLERI
+from ..mevzuat import AYLAR, GUNLER, OKUL_ICI_TURLER, YERLESTIRME_TURLERI, mem_mi
 from . import okuyucu
 from .okuyucu import Tablo
 from .utils import ay_araligi, gunler_listesi, tarih as _tarih_temel, tc_gecerli
@@ -1544,7 +1544,7 @@ class _Aktarici:
             tur = "Okulda Alan Eğitimi"
         elif t and metin(d.get("tur")) in YERLESTIRME_TURLERI:
             tur = metin(d["tur"])
-        elif o and (o["statu"] in ("Aday Çırak", "Çırak", "Kalfa (MEM 12)") or (o["program"] or "") == "MEM"):
+        elif o and mem_mi(o["program"], o["statu"]):
             tur = "Çıraklık"
         else:
             tur = "İşletmede Mesleki Eğitim"

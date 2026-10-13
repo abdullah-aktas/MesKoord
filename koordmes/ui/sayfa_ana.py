@@ -55,10 +55,20 @@ class AnaSayfa(QWidget):
             grid.addWidget(self.kartlar[k], 0, i)
         lay.addLayout(grid)
 
-        lay.addWidget(QLabel("<b>Yasal süreler ve uyarılar</b>"))
+        lay.addWidget(QLabel("<b>Yasal süreler ve uyarılar</b> &nbsp;<span style='color:#555'>Kırmızı satırlar ceza "
+                             "riskidir. Ne yapacağınızı açıklama sütunu söyler; satıra çift tıklayınca işin "
+                             "yapılacağı ekran açılır.</span>"))
         self.model = ortak.TabloModeli(["Önem", "Konu", "Açıklama", "Tarih"])
         self.view, self.proxy = ortak.tablo_gorunumu(self.model)
+        self.view.doubleClicked.connect(self._git)
         lay.addWidget(self.view, 1)
+
+    def _git(self, idx) -> None:
+        r = self.proxy.mapToSource(idx).row()
+        hedef = self.model.kimlikler[r] if 0 <= r < len(self.model.kimlikler) else ""
+        w = self.window()
+        if hedef and hasattr(w, "git"):
+            w.git(hedef)
 
     def showEvent(self, e):
         super().showEvent(e)
@@ -83,7 +93,7 @@ class AnaSayfa(QWidget):
         self.kartlar["koord"].deger.setText(str(q("SELECT COUNT(DISTINCT ogretmen_id) c FROM koordinator_gorevleri")))
         uyarilar = takvim.uyarilar(self.db)
         self.kartlar["sgk"].deger.setText(str(sum(1 for u in uyarilar if u.konu == "SGK" and "bildirgesi" in u.mesaj)))
-        self.model.ayarla([[u.seviye, u.konu, u.mesaj, tr(u.tarih)] for u in uyarilar], None,
+        self.model.ayarla([[u.seviye, u.konu, u.mesaj, tr(u.tarih)] for u in uyarilar], [u.git for u in uyarilar],
                           {i: RENKLER[u.seviye] for i, u in enumerate(uyarilar)})
         self.view.setColumnWidth(0, 70)
         self.view.setColumnWidth(1, 120)

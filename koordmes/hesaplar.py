@@ -34,7 +34,7 @@ YETKI_YOK = "Bu işlem için yetkiniz yok."
 GUNLUGE_GIRMEYEN = {"meta", "islem_gunlugu", "program_hucreleri", "sinav_ogrencileri", "sinav_gorevlileri",
                     "sinav_ogrenci_kapali", "sinav_salon_atamalari"}
 GIZLI_KOLONLAR = {"tc", "iban", "telefon", "veli_tel", "adres", "eposta", "dogum_tarihi", "vergi_no",
-                  "usta_ogretici_tel", "parola_ozeti", "agir_disiplin", "oncelikli"}
+                  "usta_ogretici_tel", "parola_ozeti", "agir_disiplin", "oncelikli", "oncelikli_tercih"}
 YONETICI_TABLOLARI = {"kurum", "ayarlar"}
 _OGRENCI = "(SELECT ad || ' ' || soyad FROM ogrenciler WHERE id = {r}.ogrenci_id)"
 _OGRETMEN = "(SELECT ad || ' ' || soyad FROM ogretmenler WHERE id = {r}.ogretmen_id)"
@@ -65,6 +65,9 @@ KAYIT_ADI = {
     "sinav_ogretmenleri": "ifnull(" + _OGRETMEN + ", '')",
     "sinav_nobetci": "{r}.tarih || ' / ' || ifnull(" + _OGRETMEN + ", '')",
     "sinav_gun_kurallari": "ifnull({r}.ders, '') || ' ' || ifnull({r}.seviye, '') || ' / ' || {r}.tarihler",
+    "sgk_beyanlari": "{r}.donem || ' APHB (' || {r}.mahiyet || ')'",
+    "sgk_beyan_satirlari": "ifnull((SELECT donem FROM sgk_beyanlari WHERE id = {r}.beyan_id), '') || ' / ' || "
+                           "{r}.ad || ' ' || {r}.soyad || ' / belge ' || {r}.belge",
 }
 ISLEMLER = {"INSERT": ("Ekleme", "NEW"), "UPDATE": ("Değişiklik", "NEW"), "DELETE": ("Silme", "OLD")}
 

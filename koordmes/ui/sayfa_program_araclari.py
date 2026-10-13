@@ -96,7 +96,8 @@ class KisitlarSekmesi(QWidget):
         lay.addWidget(_aciklama(
             "Otomatik yerleştirmenin uyacağı ek kurallar. Sınıfa ders konmayacak saatler (ör. her günün 1. saati, "
             "cuma öğleden sonra) 'Tanımlar > Sınıflar / Şubeler' formundaki 'Ders Konmayacak Saatler' alanından "
-            "işaretlenir. Kurallara uyularak tüm dersler yerleşemezse kural gerektiği kadar gevşetilir ve "
+            "işaretlenir. Kurallar kendiliğinden gevşetilmez: yerleşemeyen dersler nedenleriyle bildirilir. "
+            "Ayarlar > Ders Programı'ndaki gevşetme parametresi açılırsa kural gerektiği kadar gevşetilir ve "
             "'Kural Denetimi' uymayan yerleri listeler."))
         ust = ortak.AkisDuzeni()
         self.ogle = QSpinBox()

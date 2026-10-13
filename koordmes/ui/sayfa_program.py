@@ -5,17 +5,85 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
-from PySide6.QtWidgets import (QAbstractItemView, QApplication, QComboBox, QFileDialog, QHeaderView,
-                               QInputDialog, QLabel, QListWidget, QMenu, QPushButton, QSplitter, QTableWidget,
-                               QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
+                               QHeaderView, QInputDialog, QLabel, QListWidget, QMenu, QPushButton, QSplitter,
+                               QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QVBoxLayout, QWidget)
 
 from ..mevzuat import GUNLER
 from ..services import aktarim, degisiklik, excel_io, okuyucu, program
+from ..services.program_mevzuat import SEKME_ADIMLAR, SEKME_CERCEVE, SEKME_DAGILIM, SEKME_TABLO
 from . import ortak
 from .crud import CrudSayfasi
 from .sayfa_aktarim import surukle_dosyalar
 from .sayfa_cerceve import CerceveSayfasi
 from .varliklar import DERS_ATAMALARI
+
+
+class YerlesmeyenPenceresi(QDialog):
+    """Yerleşmeyen her blok için engeller ve öneriler."""
+
+    BASLIKLAR = ["Ders", "Blok", "Özet"]
+    PENCERE = "Yerleşmeyen Dersler ve Nedenleri"
+    EXCEL_SAYFASI = "Yerleşmeyen Dersler"
+    EXCEL_IKINCI = "Blok (saat)"
+
+    @staticmethod
+    def ikinci(n) -> tuple[str, object, str]:
+        """(tablodaki metin, Excel değeri, ayrıntı başlığındaki açıklama)."""
+        return f"{n.uzunluk} saat", n.uzunluk, f"{n.uzunluk} saatlik blok"
+
+    def __init__(self, nedenler: list, baslik: str, notlar: list[str] | None = None, parent=None):
+        super().__init__(parent)
+        self.nedenler = nedenler
+        self.setWindowTitle(self.PENCERE)
+        self.resize(980, 620)
+        lay = QVBoxLayout(self)
+        ust = QLabel(f"<b>{baslik}</b>" + "".join(f"<br>{n}" for n in notlar or []))
+        ust.setWordWrap(True)
+        lay.addWidget(ust)
+        sp = QSplitter(Qt.Vertical)
+        self.tablo = QTableWidget(len(nedenler), 3)
+        self.tablo.setHorizontalHeaderLabels(self.BASLIKLAR)
+        self.tablo.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tablo.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tablo.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        for i, n in enumerate(nedenler):
+            for j, v in enumerate([n.etiket, self.ikinci(n)[0], n.ozet]):
+                self.tablo.setItem(i, j, QTableWidgetItem(v))
+        self.tablo.resizeColumnsToContents()
+        self.tablo.currentCellChanged.connect(self._goster)
+        sp.addWidget(self.tablo)
+        self.ayrinti = QTextBrowser()
+        sp.addWidget(self.ayrinti)
+        sp.setSizes([260, 320])
+        lay.addWidget(sp, 1)
+        bb = QDialogButtonBox(QDialogButtonBox.Close)
+        excel = bb.addButton("Excel'e Aktar", QDialogButtonBox.ActionRole)
+        excel.clicked.connect(self.excel)
+        bb.rejected.connect(self.reject)
+        lay.addWidget(bb)
+        if nedenler:
+            self.tablo.setCurrentCell(0, 0)
+
+    def _goster(self, satir: int, *_):
+        if not 0 <= satir < len(self.nedenler):
+            return
+        n = self.nedenler[satir]
+        html = f"<h3>{n.etiket} ({self.ikinci(n)[2]})</h3><p>{n.ozet}</p><b>Engeller</b><ul>"
+        html += "".join(f"<li>{x}</li>" for x in n.nedenler) + "</ul><b>Ne yapmalı?</b><ol>"
+        html += "".join(f"<li>{x}</li>" for x in n.oneriler) + "</ol>"
+        self.ayrinti.setHtml(html)
+
+    def excel(self):
+        yol = ortak.kaydet_yolu(self, f"{self.EXCEL_SAYFASI}.xlsx")
+        if not yol:
+            return
+        x = excel_io.ExcelYazici()
+        x.sayfa(self.EXCEL_SAYFASI, [self.BASLIKLAR[0], self.EXCEL_IKINCI, "Özet", "Engeller", "Öneriler"],
+                [[n.etiket, self.ikinci(n)[1], n.ozet, "\n".join(n.nedenler), "\n".join(n.oneriler)]
+                 for n in self.nedenler], self.PENCERE)
+        ortak.kaydedildi(self, x.kaydet(yol))
+
 
 TIPLER = [("Sınıf", "sinif", "SELECT id, ad FROM siniflar ORDER BY seviye, ad"),
           ("Öğretmen", "ogretmen", "SELECT id, ad || ' ' || soyad FROM ogretmenler WHERE aktif = 1 ORDER BY ad, soyad"),
@@ -49,9 +117,10 @@ class ProgramTablosu(QWidget):
         ust.addWidget(ortak.etiketli("Görünüm:", self.tip))
         ust.addWidget(self.kimlik)
         for metin, fn in [("Belgeden Yükle...", self.belge_sec), ("Ön Denetim", self.on_denetim),
-                          ("Otomatik Yerleştir", self.otomatik), ("Kilitsizleri Temizle", self.temizle),
-                          ("Kilitleri Aç", self.kilitleri_ac), ("Kontrol Et", self.kontrol),
-                          ("Excel (Tüm Programlar)", self.excel), ("PDF (Bu Tablo)", self.pdf)]:
+                          ("Otomatik Yerleştir", self.otomatik), ("Neden Yerleşmedi?", self.nedenler),
+                          ("Kilitsizleri Temizle", self.temizle), ("Kilitleri Aç", self.kilitleri_ac),
+                          ("Kontrol Et", self.kontrol), ("Excel (Tüm Programlar)", self.excel),
+                          ("PDF (Bu Tablo)", self.pdf)]:
             b = QPushButton(metin)
             b.clicked.connect(fn)
             ust.addWidget(b)
@@ -302,6 +371,12 @@ class ProgramTablosu(QWidget):
         if not ok:
             return
         r = adaylar[etiketler.index(sec)]
+        uyarilar = program.elle_ekleme_uyarilari(self.db, r["id"], g, h)
+        if uyarilar and not ortak.onay(self, "Bu yerleşim parametrelere / kurallara aykırı:\n"
+                                       + "\n".join(f"- {u}" for u in uyarilar)
+                                       + "\n\nYine de eklensin mi? (Kilitli eklenir; 'Kontrol Et' bu yerleri "
+                                         "listeler.)", "Kurala Aykırı Yerleşim"):
+            return
         mesgul = self.db.q1("""SELECT o.ad || ' ' || o.soyad AS ad FROM program_hucreleri ph
                                JOIN ders_ogretmenleri dog ON dog.atama_id = ph.atama_id
                                JOIN ogretmenler o ON o.id = dog.ogretmen_id
@@ -348,28 +423,44 @@ class ProgramTablosu(QWidget):
             d = self.db.kopya()
             try:
                 s = program.programi_olustur(d)
-                return len(s.hucreler), [(a.etiket, L) for a, L in s.yerlesmeyen], s.sure, list(s.notlar)
+                return len(s.hucreler), s.nedenler, s.sure, list(s.notlar)
             finally:
                 d.close()
 
         def bitti(r):
             self.setEnabled(True)
-            n, yerlesmeyen, sure, notlar = r
+            n, nedenler, sure, notlar = r
             self.ciz()
-            ek = "".join(f"\n\nNot: {x}" for x in notlar)
-            if yerlesmeyen:
-                ortak.bilgi(self, f"{n} saat yerleşti ({sure:.1f} sn). Yerleşemeyen {len(yerlesmeyen)} blok var:\n"
-                                  + "\n".join(f"- {e} ({L} saat)" for e, L in yerlesmeyen[:20])
-                                  + "\n\nÖğretmen müsaitliği, sınıf okul günleri, atölye sayısı veya blok "
-                                    "uzunluklarını 'Ön Denetim' ile kontrol ediniz." + ek)
+            self._ana_yenile()
+            if nedenler:
+                self.son_pencere = YerlesmeyenPenceresi(
+                    nedenler, f"{n} saat yerleşti ({sure:.1f} sn). Parametrelere uyularak yerleşemeyen "
+                              f"{len(nedenler)} blok var; her birinin nedeni ve çözüm önerisi aşağıdadır.", notlar,
+                    self)
+                self.son_pencere.open()
             else:
-                ortak.bilgi(self, f"Tüm dersler çakışmasız yerleşti ({n} saat, {sure:.1f} sn)." + ek)
+                ortak.bilgi(self, f"Tüm dersler çakışmasız ve parametrelere uygun yerleşti ({n} saat, {sure:.1f} sn)."
+                            + "".join(f"\n\nNot: {x}" for x in notlar))
 
         def hata_(e):
             self.setEnabled(True)
             ortak.hata(self, e)
 
         ortak.arka_planda(is_, bitti, hata_)
+
+    def nedenler(self):
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            nedenler = program.yerlesmeme_nedenleri(self.db)
+        finally:
+            QApplication.restoreOverrideCursor()
+        if not nedenler:
+            ortak.bilgi(self, "Bütün ders saatleri programda; yerleşmeyen ders yok.", "Neden Yerleşmedi?")
+            return
+        self.son_pencere = YerlesmeyenPenceresi(
+            nedenler, f"Programda eksik {len(nedenler)} blok var. Engeller bugünkü programa (kilitli ve kilitsiz "
+                      "bütün hücreler yerinde kalarak) göre hesaplandı.", parent=self)
+        self.son_pencere.open()
 
     def temizle(self):
         if ortak.onay(self, "Kilitli olmayan tüm program hücreleri silinsin mi?"):
@@ -610,8 +701,20 @@ class OzelDurumSayfasi(QWidget):
 class ProgramSayfasi(QTabWidget):
     def __init__(self, db, parent=None):
         super().__init__(parent)
-        self.addTab(CrudSayfasi(db, DERS_ATAMALARI), "Ders Dağılımı (Sınıf-Ders-Öğretmen)")
-        self.addTab(ProgramTablosu(db), "Sınıf / Öğretmen / Mekan")
-        self.addTab(CerceveSayfasi(db), "Çerçeve Öğretim Programları")
+        from .sayfa_program_surec import ProgramSurecSayfasi
+        self.addTab(ProgramSurecSayfasi(db), SEKME_ADIMLAR)
+        self.addTab(CrudSayfasi(db, DERS_ATAMALARI), SEKME_DAGILIM)
+        self.addTab(ProgramTablosu(db), SEKME_TABLO)
+        self.addTab(CerceveSayfasi(db), SEKME_CERCEVE)
         self.addTab(NobetSayfasi(db), "Nöbet")
         self.addTab(OzelDurumSayfasi(db), "Özel Durumlar")
+
+    def sekme(self, ad: str) -> QWidget | None:
+        for i in range(self.count()):
+            if self.tabText(i) == ad:
+                self.setCurrentIndex(i)
+                return self.widget(i)
+        return None
+
+    def program_tablosu(self) -> "ProgramTablosu":
+        return next(self.widget(i) for i in range(self.count()) if isinstance(self.widget(i), ProgramTablosu))

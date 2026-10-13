@@ -90,6 +90,13 @@ def yorumla(db, komut: str, bugun: date | None = None) -> Yanit:
     if n in ("merhaba", "selam", "gunaydin", "iyi gunler", "ozet", "durum", "genel durum") or \
             _var(n, "bugun", "ne yapmali", "yapilacak", "gundem", "uyari", "hatirlat"):
         return gundem(db, bugun)
+    if _var(n, "sinav", "sorumluluk", "tek ders"):
+        if re.search(r"(^|\s)ek ?ders", n) or _var(n, "ucret", "puantaj"):
+            return _hemen(db, "sinav_ekders")
+        if _var(n, "planla", "yerlestir", "hazirla", "olustur", "gorevli", "dagit", "hepsini yap"):
+            return _eylem("sinav_planla", "Güncel sınav döneminde sınavlar seanslara yerleştirilecek, komisyon ve "
+                                          "gözcüler atanacak, öğrenciler salonlara dağıtılacak.")
+        return _hemen(db, "sinav_adimlari")
     if _var(n, "denetim", "denetle", "kontrol et", "tutarsiz", "eksik bilgi", "veri kontrol", "hatali kayit"):
         return _denetim(db)
     if _var(n, "yonetmelik", "koordinator mudur yardimcisi gorev", "kmy gorev"):
@@ -134,6 +141,16 @@ def yorumla(db, komut: str, bugun: date | None = None) -> Yanit:
         return Yanit("e-Bildirge'den aldığınız listeyi <b>SGK Sigorta İşlemleri &gt; Liste Karşılaştırma</b> "
                      "sekmesine yükleyin veya sürükleyin; okul kayıtlarıyla farklar ve düzeltme önerileri listelenir.",
                      git="SGK Sigorta İşlemleri")
+    if sgk_mi and _var(n, "on kontrol", "hazirlik kontrol", "belge kontrol"):
+        yil, ay = donem_bul(n, bugun)
+        return _hemen(db, "sgk_on_kontrol", yil=yil, ay=ay)
+    if sgk_mi and _var(n, "duzelt", "iptal", "ek belge"):
+        yil, ay = donem_bul(n, bugun)
+        return _hemen(db, "sgk_duzeltme", yil=yil, ay=ay)
+    if sgk_mi and _var(n, "verildi", "onaylandi", "beyan kaydet"):
+        yil, ay = donem_bul(n, bugun)
+        return _eylem("sgk_beyan_kaydet", f"<b>{AYLAR[ay - 1]} {yil}</b> aylık prim ve hizmet belgesi verildi olarak "
+                                          "kaydedilecek.", yil=yil, ay=ay)
     if sgk_mi and _var(n, "risk", "ceza", "hata", "oneri"):
         return _sgk_riskleri(db, bugun)
     if sgk_mi and _var(n, "xml", "sablon", "yuklenecek"):
@@ -220,7 +237,8 @@ def yardim() -> Yanit:
     gruplar = [
         ("Gündem", ["bugün ne yapmalıyım", "denetim", "yıl başı", "aylık süreç", "yıl sonu"]),
         ("Aylık işler", ["geçen ayın kapanışını hazırla", "ekim sgk listesi", "sgk bildirimleri",
-                         "sgk ceza riskleri", "sgk listesi karşılaştır", "ekim e-bildirge xml",
+                         "sgk ceza riskleri", "sgk listesi karşılaştır", "ekim sgk ön kontrol",
+                         "ekim e-bildirge xml", "ekim sgk belgesi verildi", "ekim sgk düzeltme",
                          "sgk giriş çıkış xml", "e-bildirge excel şablonu", "ücret hesapla",
                          "dekontlar", "ek ders puantajı", "devamsızlık", "veli bildirimleri"]),
         ("Koordinatörlük", ["koordinatör görevlendir", "görevlendirme yazıları", "ziyaret planı kasım",
@@ -229,6 +247,7 @@ def yardim() -> Yanit:
                         "alan taraması", "anket", "hizmetiçi eğitim"]),
         ("Program ve belgeler", ["zorunlu dersleri aç", "programı oluştur", "sözleşmeleri hazırla",
                                  "değerlendirme formları"]),
+        ("Sorumluluk / tek ders sınavı", ["sınav iş adımları", "sınavları planla", "sınav ücretlerini ek derse aktar"]),
         ("Veri", ["dosya aktar", "yedek al", "parametreler", "istatistik"]),
         ("Sorgu", ["Ahmet Yılmaz (öğrenci/öğretmen adı)", "12-A (sınıf)", "işletme adı", "T.C. veya okul no"]),
     ]

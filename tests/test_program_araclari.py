@@ -52,8 +52,19 @@ def test_ders_grubu_ayni_gune_gelmez(db):
     assert not _gunler(db, a) & _gunler(db, b)
     assert program.kural_ihlalleri(db) == []
 
-    # aynı günü zorunlu kılan veri: kural gevşetilir, dersler yine yerleşir, ihlal raporlanır
+    # aynı günü zorunlu kılan veri: parametrelere kesin uyulur, yerleşmeyen blok nedeniyle bildirilir
     db.update("siniflar", s, {"okul_gunleri": "1"})
+    sonuc = program.programi_olustur(db, sure_limit=5, seed=4)
+    n = len(sonuc.yerlesmeyen)
+    assert n and any("kesin uyuldu" in x and f"{n} blok daha" in x for x in sonuc.notlar)
+    neden = sonuc.nedenler[0]
+    assert len(sonuc.nedenler) == n and "aynı güne gelmemesi" in neden.ozet
+    assert any("Matematik" in x for x in neden.nedenler) and any("Kısıtlar" in o for o in neden.oneriler)
+    assert program.kural_ihlalleri(db) == []
+    assert [x.etiket for x in program.yerlesmeme_nedenleri(db)] == [neden.etiket] * n
+
+    # gevşetmeye izin verilirse dersler yerleşir, ihlal raporlanır
+    db.ayar_yaz("program_kural_gevset", 1)
     sonuc = program.programi_olustur(db, sure_limit=5, seed=4)
     assert not sonuc.yerlesmeyen and any("gevşetildi" in n for n in sonuc.notlar)
     assert any("Aynı güne gelmemeli" in m for m in program.kural_ihlalleri(db))

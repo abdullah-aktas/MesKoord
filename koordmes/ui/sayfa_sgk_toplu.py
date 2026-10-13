@@ -2,14 +2,16 @@
 from __future__ import annotations
 
 from datetime import date
+from html import escape
 
-from PySide6.QtCore import QDate
+from PySide6.QtCore import QDate, Qt
 from PySide6.QtWidgets import QCheckBox, QComboBox, QDateEdit, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from ..mevzuat import AYLAR, FESIH_NEDENLERI, YERLESTIRME_TURLERI
-from ..services import excel_io, sgk_toplu
+from ..services import excel_io, koruma, sgk_beyan, sgk_dosya, sgk_toplu
 from ..services.utils import tr
 from . import ortak
+from .koruma import rehber_goster
 
 
 def _aciklama(metin: str) -> QLabel:
@@ -88,6 +90,37 @@ class _ListeSekmesi(QWidget):
         if yol:
             ortak.kaydedildi(self, excel_io.tablo_yaz(yol, self.BASLIKLAR, self.model.rows, self.DOSYA[:-5]))
 
+    def bildirge_xml(self, tur: str, sessiz: bool = False):
+        """Seçili tarihte işlenmiş ve bildirimi bekleyen giriş/çıkışlar için 4A toplu XML."""
+        from .sayfa_sgk_ucret import dosya_sonucu_goster, sgk_klasoru
+        t = _qdate(self.tarih)
+        ids = sgk_toplu.bildirge_bekleyenler(self.db, t, tur, self.sinif.kimlikler())
+        if not ids:
+            if not sessiz:
+                ortak.bilgi(self, f"{tr(t)} tarihli, bildirimi bekleyen {'işe giriş' if tur == 'Giriş' else 'işten ayrılış'} "
+                                  "yok. Önce tarihi işleyin; işletme değişikliği gibi bildirim gerektirmeyenler alınmaz.")
+            return None
+        try:
+            sonuc = sgk_dosya.bildirge_dosyalari(self.db, ids, tur, sgk_klasoru())
+        except sgk_dosya.SgkDosyaHatasi as e:
+            if not sessiz:
+                ortak.hata(self, str(e))
+            return None
+        if not sessiz:
+            dosya_sonucu_goster(self, sonuc, sgk_beyan.GIRIS_YUKLEME if tur == "Giriş" else sgk_beyan.CIKIS_YUKLEME,
+                                "sgk4a")
+        return sonuc
+
+    def islendi(self, ozet: str, tur: str) -> None:
+        """Toplu işlemden sonra: gereken bildirgeleri, son günü ve cezayı söyler, dosyayı hemen üretmeyi önerir."""
+        ids = sgk_toplu.bildirge_bekleyenler(self.db, _qdate(self.tarih), tur, self.sinif.kimlikler())
+        rh = koruma.toplu_rehber(self.db, ids, tur) if ids else None
+        if rh is None:
+            ortak.bilgi(self, ozet)
+            return
+        rh.satirlar.insert(0, ozet)
+        rehber_goster(self, self.db, rh)
+
 
 class TopluGirisTarihi(_ListeSekmesi):
     BASLIKLAR = ["Sınıf", "No", "Ad Soyad", "T.C.", "Önerilen Tür", "Önceki Kayıt"]
@@ -110,7 +143,9 @@ class TopluGirisTarihi(_ListeSekmesi):
         for t in YERLESTIRME_TURLERI:
             self.tur.addItem(t, t)
         self.ust.addWidget(self.tur)
-        self.dugmeler([("Giriş Tarihini İşle", self.uygula), ("Excel'e Aktar", self.excel)])
+        self.dugmeler([("Giriş Tarihini İşle", self.uygula),
+                       ("İşe Giriş XML Üret (bu tarih)", lambda *_: self.bildirge_xml("Giriş")),
+                       ("Excel'e Aktar", self.excel)])
 
     def yenile(self):
         self.sinif.doldur()
@@ -130,7 +165,7 @@ class TopluGirisTarihi(_ListeSekmesi):
             return
         s = sgk_toplu.toplu_giris(self.db, ids, t, self.tur.currentData())
         self.yenile()
-        ortak.bilgi(self, s.metin("sigorta girişi açıldı"))
+        self.islendi(s.metin("sigorta girişi açıldı"), "Giriş")
 
 
 class TopluCikisTarihi(_ListeSekmesi):
@@ -150,13 +185,21 @@ class TopluCikisTarihi(_ListeSekmesi):
         self.tarihsiz.toggled.connect(lambda _: self.yenile())
         self.ust.addWidget(self.tarihsiz)
         self.tarih = _tarih_secici()
+        self.tarih.dateChanged.connect(lambda _: self.on_kontrol())
         self.ust.addWidget(ortak.etiketli("Çıkış tarihi:", self.tarih))
         self.neden = QComboBox()
         self.neden.addItem("Süre bitti (dönem sonu)", "")
         for n in FESIH_NEDENLERI:
             self.neden.addItem(n, n)
         self.ust.addWidget(ortak.etiketli("Neden:", self.neden))
-        self.dugmeler([("Çıkış Tarihini İşle", self.uygula), ("Excel'e Aktar", self.excel)])
+        self.dugmeler([("Çıkış Tarihini İşle", self.uygula),
+                       ("İşten Ayrılış XML Üret (bu tarih)", lambda *_: self.bildirge_xml("Çıkış")),
+                       ("Excel'e Aktar", self.excel)])
+        self.kontrol = QLabel()
+        self.kontrol.setWordWrap(True)
+        self.kontrol.setTextFormat(Qt.RichText)
+        self.lay.insertWidget(2, self.kontrol)
+        self.kontroller: list[sgk_beyan.Kontrol] = []
 
     def yenile(self):
         self.sinif.doldur()
@@ -165,6 +208,14 @@ class TopluCikisTarihi(_ListeSekmesi):
                            for c in self.liste], [c.yerlestirme_id for c in self.liste])
         ortak.sutunlari_sigdir(self.view)
         self.durum.setText(f"{len(self.liste)} açık sigorta kaydı.")
+        self.on_kontrol()
+
+    def on_kontrol(self):
+        self.kontroller = sgk_beyan.cikis_on_kontrol(self.db, _qdate(self.tarih))
+        renk = {True: "#155724", False: "#a00", None: "#8a6d00"}
+        self.kontrol.setText("<b>Toplu çıkış ön kontrolü:</b> " + " &nbsp;|&nbsp; ".join(
+            f"<span style='color:{renk[k.durum]}'>[{k.isaret}] {escape(k.baslik)}</span>"
+            + ("" if k.durum else f": {escape(k.detay)}") for k in self.kontroller))
 
     def uygula(self):
         ids = self.secili() or [c.yerlestirme_id for c in self.liste]
@@ -172,11 +223,14 @@ class TopluCikisTarihi(_ListeSekmesi):
             ortak.bilgi(self, "Açık sigorta kaydı yok.")
             return
         t = _qdate(self.tarih)
-        if not ortak.onay(self, f"{len(ids)} kayda {tr(t)} tarihli çıkış ({self.neden.currentText()}) işlensin mi?"):
+        self.on_kontrol()
+        sorun = [f"- {k.baslik}: {k.detay}" for k in self.kontroller if k.durum is False]
+        if not ortak.onay(self, f"{len(ids)} kayda {tr(t)} tarihli çıkış ({self.neden.currentText()}) işlensin mi?"
+                                + ("\n\nÖn kontrolde sorun var:\n" + "\n".join(sorun) if sorun else "")):
             return
         s = sgk_toplu.toplu_cikis(self.db, ids, t, self.neden.currentData())
         self.yenile()
-        ortak.bilgi(self, s.metin("çıkış tarihi işlendi"))
+        self.islendi(s.metin("çıkış tarihi işlendi"), "Çıkış")
 
 
 class ListeDisiKalanlar(_ListeSekmesi):

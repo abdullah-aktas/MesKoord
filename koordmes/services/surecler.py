@@ -14,8 +14,8 @@ from typing import Any, Callable
 
 from .. import config
 from ..mevzuat import AYLAR, ISLETMEYE_GIDEN_SINIF_SQL, OKUL_ICI_TURLER
-from . import (belgeler, cerceve, denetim, devam, koordinator, mesleki_egitim, program, raporlar, sgk_dosya, sgk_risk,
-               sigorta, ucret)
+from . import (belgeler, cerceve, denetim, devam, koordinator, mesleki_egitim, program, raporlar, sgk_beyan, sgk_dosya,
+               sgk_risk, sigorta, ucret)
 from .utils import ay_araligi, para, tr
 
 
@@ -163,6 +163,34 @@ def _sgk_xml(db, yil=None, ay=None, bicim="xml", **_) -> EylemSonucu:
     return EylemSonucu(m + " e-Bildirge V2'ye yükleyip onayladıktan sonra belgeyi 'verildi' işaretleyin.", s.yollar)
 
 
+def _sgk_on_kontrol(db, yil=None, ay=None, **_) -> EylemSonucu:
+    yil, ay = _ay(yil, ay)
+    k = sgk_beyan.on_kontrol(db, yil, ay)
+    satirlar = [f"[{x.isaret}] {x.baslik}: {x.detay}" for x in k if x.durum is not True]
+    return EylemSonucu(f"{_donem(yil, ay)} SGK belge ön kontrolü: {sgk_beyan.kontrol_ozeti(k)}"
+                       + ("\n" + "\n".join(satirlar) if satirlar else ""), git="SGK Sigorta İşlemleri")
+
+
+def _sgk_duzeltme(db, yil=None, ay=None, **_) -> EylemSonucu:
+    yil, ay = _ay(yil, ay)
+    try:
+        s = sgk_beyan.duzeltme_dosyalari(db, yil, ay)
+    except sgk_dosya.SgkDosyaHatasi as e:
+        return EylemSonucu(str(e), git="SGK Sigorta İşlemleri")
+    return EylemSonucu(f"{_donem(yil, ay)} düzeltme belgeleri (iptal + ek): {s.ozet()}. " + " ".join(s.uyarilar[:2]),
+                       s.yollar, "SGK Sigorta İşlemleri")
+
+
+def _sgk_beyan_kaydet(db, yil=None, ay=None, **_) -> EylemSonucu:
+    yil, ay = _ay(yil, ay)
+    try:
+        sgk_beyan.beyan_kaydet(db, yil, ay)
+    except sgk_dosya.SgkDosyaHatasi as e:
+        return EylemSonucu(str(e), git="SGK Sigorta İşlemleri")
+    return EylemSonucu(f"{_donem(yil, ay)} aylık prim ve hizmet belgesi verildi olarak kaydedildi; sonradan değişen "
+                       "kayıtlar SGK > Aylık Beyan sekmesinde izlenir.")
+
+
 def _sgk_bildirge_xml(db, bicim="xml", **_) -> EylemSonucu:
     bekleyen = sigorta.bekleyen_bildirimler(db)
     if not bekleyen:
@@ -219,6 +247,48 @@ def _ekders(db, yil=None, ay=None, **_) -> EylemSonucu:
     return EylemSonucu(f"{_donem(yil, ay)} ek ders puantajı: {len(liste)} öğretmen, "
                        f"{sum(p.toplam for p in liste):g} saat, tahmini brüt {para(sum(p.brut for p in liste))} TL.",
                        [yol])
+
+
+SINAV_SAYFASI = "Sınav Planlama ve Görevlendirme"
+
+
+def _sinav_donemi(db) -> int:
+    from . import sinav_surec
+    did = sinav_surec.guncel_donem(db)
+    if not did:
+        raise ValueError("Sınav dönemi yok. Sınav Planlama ekranında 'Yeni Dönem' ile dönemi açın.")
+    return did
+
+
+def _sinav_planla(db, **_) -> EylemSonucu:
+    from . import sinav, sinav_surec
+    did = _sinav_donemi(db)
+    if not sinav.seanslar(db, did, sadece_acik=True):
+        return EylemSonucu("Sınav döneminde açık seans yok; önce Seans Çizelgesi'ni oluşturun.", git=SINAV_SAYFASI)
+    s, satirlar = sinav_surec.hepsini_yap(db, did)
+    m = f"{sinav.donem(db, did)['ad']}: " + " ".join(satirlar)
+    if s.nedenler:
+        m += " Yerleşemeyenler: " + "; ".join(f"{n.etiket} — {n.ozet}" for n in s.nedenler[:3])
+    if s.notlar:
+        m += " " + " ".join(s.notlar)
+    return EylemSonucu(m, git=SINAV_SAYFASI)
+
+
+def _sinav_ekders(db, **_) -> EylemSonucu:
+    from . import sinav, sinav_surec
+    did = _sinav_donemi(db)
+    a = sinav_surec.ekderse_aktar(db, did)
+    return EylemSonucu(f"{sinav.donem(db, did)['ad']}: {a.ozet()}", git="Ek Ders Puantajı")
+
+
+def _sinav_adimlari(db, **_) -> EylemSonucu:
+    from . import sinav, sinav_surec
+    did = _sinav_donemi(db)
+    adimlar = sinav_surec.is_adimlari(db, did)
+    eksik = [a for a in adimlar if a.durum is False]
+    m = f"{sinav.donem(db, did)['ad']}: {len(adimlar)} adımdan {sum(1 for a in adimlar if a.durum)} tamam"
+    m += (", eksikler: " + "; ".join(f"{a.no}. {a.baslik} ({a.detay})" for a in eksik[:4]) + ".") if eksik else "."
+    return EylemSonucu(m, git=SINAV_SAYFASI)
 
 
 def _devam(db, **_) -> EylemSonucu:
@@ -356,6 +426,12 @@ def aylik_kapanis(db, yil: int | None = None, ay: int | None = None) -> EylemSon
             f"Sigortalı öğrenci: {len(sgk)}, toplam prim: {para(sum(s.prim for s in sgk))} TL",
             f"Ücret alan öğrenci: {len(liste)}, ödenecek: {para(sum(s.odenecek_ucret for s in liste))} TL, "
             f"devlet katkısı: {para(sum(s.devlet_katkisi for s in liste))} TL", ""] + satirlar + hatalar
+    try:
+        kontroller = sgk_beyan.on_kontrol(db, yil, ay)
+        ozet += ["", f"SGK belge ön kontrolü: {sgk_beyan.kontrol_ozeti(kontroller)}"] + \
+            [f"- [{k.isaret}] {k.baslik}: {k.detay}" for k in kontroller if k.durum is not True]
+    except Exception as e:  # özet dosyası yine yazılsın
+        ozet += ["", f"SGK belge ön kontrolü yapılamadı: {e}"]
     son = sonraki_ay(yil, ay)
     ozet += ["", "Yasal süreler:",
              f"- Dekontlar işletmelerden: {db.ayar('dekont_teslim_son_gun')}.{son[1]:02d}.{son[0]}",
@@ -449,12 +525,22 @@ EYLEMLER: dict[str, Eylem] = {e.anahtar: e for e in [
     Eylem("sgk_xml", "e-Bildirge aylık prim ve hizmet belgesi XML", _sgk_xml),
     Eylem("sgk_excel", "e-Bildirge aylık prim ve hizmet belgesi Excel (SGK şablonu)",
           lambda db, **kw: _sgk_xml(db, **{**kw, "bicim": "excel"})),
+    Eylem("sgk_on_kontrol", "SGK belge ön kontrolü", _sgk_on_kontrol),
+    Eylem("sgk_duzeltme", "e-Bildirge düzeltme belgeleri (iptal + ek)", _sgk_duzeltme),
+    Eylem("sgk_beyan_kaydet", "Aylık prim ve hizmet belgesini 'verildi' kaydet", _sgk_beyan_kaydet,
+          onay="Belge e-Bildirge V2'de onaylandı mı? Dönemin şu anki listesi verilen belge olarak kaydedilecek; "
+               "sonraki değişiklikler bu kayda göre izlenir. Devam edilsin mi?"),
     Eylem("sgk_bildirge_xml", "SGK işe giriş / işten ayrılış XML", _sgk_bildirge_xml),
     Eylem("sgk_bildirge_excel", "SGK işe giriş / işten ayrılış Excel (SGK şablonu)",
           lambda db, **kw: _sgk_bildirge_xml(db, **{**kw, "bicim": "excel"})),
     Eylem("ucret", "Ücret ve devlet katkısını hesapla", _ucret),
     Eylem("dekont", "Dekont takip listesi", _dekont),
     Eylem("ekders", "Ek ders puantajı", _ekders),
+    Eylem("sinav_planla", "Sınavları planla, görevlileri ata, salonlara yerleştir", _sinav_planla, uzun=True,
+          onay="Güncel sınav döneminde çakılı olmayan sınavların seansları, kilitli olmayan görevliler ve salon "
+               "yerleşimi yeniden yapılacak. Devam edilsin mi?"),
+    Eylem("sinav_ekders", "Sınav görev ücretlerini ek ders puantajına aktar", _sinav_ekders),
+    Eylem("sinav_adimlari", "Sınav iş adımlarını denetle", _sinav_adimlari),
     Eylem("devam", "Devamsızlık özeti", _devam),
     Eylem("veli", "Veli devamsızlık bildirimleri", _veli),
     Eylem("komisyon_karari", "Koordinatörlük komisyon kararı", _komisyon_karari),
@@ -640,10 +726,19 @@ def _k_muhsgk(db, yil, ay):
 
 
 def _k_aphb(db, yil, ay):
-    verildi = db.ayar(sgk_risk.aphb_anahtari(yil, ay))
+    verildi = sgk_risk.aphb_verildi(db, yil, ay)
     if verildi:
+        fark = sgk_beyan.fark_analizi(db, yil, ay)
+        if fark.satirlar:
+            return False, f"Verildi ({tr(verildi)}); sonra {len(fark.satirlar)} kişide değişiklik: düzeltme gerekli"
         return True, f"Verildi ({tr(verildi)})"
-    return None, f"Son gün {sgk_risk.aphb_son_gunu(db, yil, ay):%d.%m.%Y}; yükleyince 'verildi' işaretleyin"
+    return None, f"Son gün {sgk_risk.aphb_son_gunu(db, yil, ay):%d.%m.%Y}; yükleyince 'Beyanı Kaydet' deyin"
+
+
+def _k_sgk_on(db, yil, ay):
+    k = sgk_beyan.on_kontrol(db, yil, ay)
+    sorun = [x.baslik for x in k if x.durum is False]
+    return (not sorun), (f"{len(sorun)} sorun: " + ", ".join(sorun)) if sorun else sgk_beyan.kontrol_ozeti(k)
 
 
 def _k_ucret(db, yil, ay):
@@ -767,6 +862,7 @@ SURECLER: dict[str, Surec] = {s.anahtar: s for s in [
         Adim("Devamsızlıkların işlenmesi", _k_devam_ay, "git:Veri Aktarımı"),
         Adim("Ziyaret sonuçlarının girilmesi", _k_ziyaret_sonuc, "git:Koordinatörlük"),
         Adim("SGK aylık prim hizmet listesi", _k_muhsgk, "sgk_prim"),
+        Adim("SGK belge ön kontrolü (işyeri, T.C., giriş bildirgesi, yaş)", _k_sgk_on, "sgk_on_kontrol"),
         Adim("e-Bildirge V2 aylık prim ve hizmet belgesi XML", _k_aphb, "sgk_xml"),
         Adim("SGK giriş/çıkış bildirimleri", _k_sgk(None), "sgk_bildirim"),
         Adim("Ücret ve devlet katkısı hesabı", _k_ucret, "ucret"),

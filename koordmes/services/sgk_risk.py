@@ -53,11 +53,7 @@ def _yas(dogum: date, gun: date) -> int:
     return gun.year - dogum.year - ((gun.month, gun.day) < (dogum.month, dogum.day))
 
 
-def _yas_doldugu_gun(dogum: date, yas: int) -> date:
-    try:
-        return dogum.replace(year=dogum.year + yas)
-    except ValueError:  # 29 Şubat
-        return date(dogum.year + yas, 3, 1)
+_yas_doldugu_gun = sigorta.yas_doldugu_gun
 
 
 def _onceki_ay(d: date, kac: int = 1) -> tuple[int, int]:
@@ -72,7 +68,12 @@ def aphb_anahtari(yil: int, ay: int) -> str:
 
 
 def aphb_verildi(db, yil: int, ay: int) -> date | None:
-    return tarih(db.ayar(aphb_anahtari(yil, ay)))
+    """Dönemin asıl belgesinin verildiği gün: 'verildi' işareti ya da kayıtlı asıl beyan."""
+    d = tarih(db.ayar(aphb_anahtari(yil, ay)))
+    if d:
+        return d
+    r = db.q1("SELECT MIN(tarih) AS t FROM sgk_beyanlari WHERE donem = ? AND mahiyet = 'A'", (f"{yil:04d}-{ay:02d}",))
+    return tarih(r["t"]) if r else None
 
 
 def aphb_isaretle(db, yil: int, ay: int, tarih_: date | None = None) -> None:
@@ -80,8 +81,10 @@ def aphb_isaretle(db, yil: int, ay: int, tarih_: date | None = None) -> None:
 
 
 def aphb_isaretini_kaldir(db, yil: int, ay: int) -> None:
-    """'APHB verildi' işaretini kaldırır (iptal edilen ya da yanlışlıkla işaretlenen belge)."""
+    """'APHB verildi' işaretini ve dönemin beyan kayıtlarını kaldırır (iptal edilen ya da yanlışlıkla işaretlenen
+    belge)."""
     db.ayar_yaz(aphb_anahtari(yil, ay), "")
+    db.execute("DELETE FROM sgk_beyanlari WHERE donem = ?", (f"{yil:04d}-{ay:02d}",))
 
 
 def aphb_son_gunu(db, yil: int, ay: int) -> date:
@@ -129,7 +132,8 @@ def analiz(db, bugun: date | None = None) -> list[Risk]:
                             f"Süresinde verin; gecikirse ceza ~{_tl(ceza)}. Verdiyseniz 'bildirildi' işaretleyin.",
                             dayanak, b.son_tarih, yerlestirme_id=b.yerlestirme_id, eylem=f"bildirildi:{b.tur}"))
 
-    rows = db.q("""SELECT y.*, o.tc, o.ad, o.soyad, o.dogum_tarihi, o.bakmakla_yukumlu, s.ad AS sinif,
+    rows = db.q("""SELECT y.*, o.tc, o.ad, o.soyad, o.dogum_tarihi, o.bakmakla_yukumlu, o.baska_sigortali,
+                          s.ad AS sinif,
                           i.ad AS isletme
                    FROM yerlestirmeler y JOIN ogrenciler o ON o.id = y.ogrenci_id
                    LEFT JOIN siniflar s ON s.id = o.sinif_id LEFT JOIN isletmeler i ON i.id = y.isletme_id
@@ -165,7 +169,7 @@ def analiz(db, bugun: date | None = None) -> list[Risk]:
     fark_oran = db.ayar("sgk_prim_yukumlu_degil") - db.ayar("sgk_prim_yukumlu")
     gorulen.clear()
     for r in aktif:
-        if r["ogrenci_id"] in gorulen or not r["bakmakla_yukumlu"]:
+        if r["ogrenci_id"] in gorulen or not r["bakmakla_yukumlu"] or r["baska_sigortali"]:
             continue
         gorulen.add(r["ogrenci_id"])
         d = tarih(r["dogum_tarihi"])
@@ -185,7 +189,8 @@ def analiz(db, bugun: date | None = None) -> list[Risk]:
                 f"bakmakla yükümlü sayılmaz. Belge {db.ayar('belge_isletme_yukumlu')} yerine "
                 f"{db.ayar('belge_isletme_degil')} (prim %{db.ayar('sgk_prim_yukumlu') * 100:g} yerine "
                 f"%{db.ayar('sgk_prim_yukumlu_degil') * 100:g}); aylık prim farkı ~{_tl(aylik_fark)}.",
-                "Öğrenci kartında 'bakmakla yükümlü' işaretini kaldırın. Geçmiş aylar eski belgeyle bildirildiyse "
+                "Program yaşını doldurduğu aydan sonraki belgeleri kendiliğinden 42/50 ile hazırlar; öğrenci "
+                "kartındaki 'bakmakla yükümlü' işaretini de kaldırın. Geçmiş aylar eski belgeyle bildirildiyse "
                 f"iptal ve ek belge verin (ek belge cezası ~{_tl(ceza_ek)}; kendiliğinden ~{_tl(ceza_ek * indirim)})"
                 + (f"; yaklaşık {gecen_ay} aylık prim farkı (~{_tl(aylik_fark * gecen_ay)}) gecikme zammıyla ödenir."
                    if gecen_ay else "."),
@@ -234,7 +239,7 @@ def analiz(db, bugun: date | None = None) -> list[Risk]:
     # --- aylık prim ve hizmet belgesi ---
     for kac in (2, 1):
         yil, ay = _onceki_ay(bugun, kac)
-        if db.ayar(aphb_anahtari(yil, ay)):
+        if aphb_verildi(db, yil, ay):
             continue
         liste = sigorta.aylik_liste(db, yil, ay)
         if not liste:
@@ -257,6 +262,27 @@ def analiz(db, bugun: date | None = None) -> list[Risk]:
                             f"Aylık Prim Hizmet Listesi'ni Excel'e aktarıp e-Bildirge'ye yükleyin; geç verilirse ceza "
                             f"~{_tl(ceza)}. Eksik gün belgelerini (devamsızlık tutanakları) dosyada saklayın.",
                             "5510 md.86, md.102/1-c", son, eylem=f"aphb:{yil:04d}-{ay:02d}"))
+
+    # --- verildikten sonra değişen belgeler (iptal + ek gerekir) ---
+    from .sgk_beyan import fark_analizi
+    for kac in (3, 2, 1):
+        yil, ay = _onceki_ay(bugun, kac)
+        if not db.q1("SELECT 1 FROM sgk_beyanlari WHERE donem = ?", (f"{yil:04d}-{ay:02d}",)):
+            continue
+        fark = fark_analizi(db, yil, ay)
+        if not fark.satirlar:
+            continue
+        son = aphb_son_gunu(db, yil, ay)
+        n = len({f.tc for f in fark.satirlar if f.yeni is not None})
+        gec = bugun > son
+        ceza = n * ceza_ek if gec else 0.0
+        out.append(Risk("Uyarı", f"{ay:02d}/{yil} belgesi verildikten sonra kayıtlar değişti",
+                        f"{len(fark.satirlar)} sigortalı", fark.ozet(),
+                        "SGK > Aylık Beyan sekmesinde 'Düzeltme Dosyalarını Üret' ile yalnızca bu kişiler için iptal ve "
+                        "ek belge hazırlayın; onayladıktan sonra 'Düzeltmeyi Kaydet' deyin."
+                        + (f" Süre geçtiği için ek belge cezası ~{_tl(ceza)}; kendiliğinden ~{_tl(ceza * indirim)}."
+                           if ceza else " Son güne kadar verilirse ceza doğmaz."),
+                        "5510 md.86, md.102/1-c", son, round(ceza, 2), round(ceza * indirim, 2)))
     out.sort(key=lambda r: (SEVIYE_SIRASI.get(r.seviye, 9), r.son_tarih or date.max, r.konu, r.kisi))
     return out
 
@@ -283,9 +309,15 @@ def uygula(db, risk: Risk) -> str:
         sigorta.bildirildi_isaretle(db, risk.yerlestirme_id, tur)
         return f"{risk.kisi}: {tur.lower()} bildirildi olarak işaretlendi"
     if e.startswith("aphb:"):
+        from .sgk_beyan import beyan_kaydet
+        from .sgk_dosya import SgkDosyaHatasi
         y, a = (int(x) for x in e.split(":")[1].split("-"))
-        aphb_isaretle(db, y, a)
-        return f"{a:02d}/{y} APHB verildi olarak işaretlendi"
+        try:
+            beyan_kaydet(db, y, a)
+            return f"{a:02d}/{y} APHB verildi olarak işaretlendi; beyan edilen satırlar kaydedildi"
+        except SgkDosyaHatasi:
+            aphb_isaretle(db, y, a)
+            return f"{a:02d}/{y} APHB verildi olarak işaretlendi"
     if e == "yukumlu_kaldir" and risk.ogrenci_id:
         db.update("ogrenciler", risk.ogrenci_id, {"bakmakla_yukumlu": 0})
         return f"{risk.kisi}: bakmakla yükümlü işareti kaldırıldı"

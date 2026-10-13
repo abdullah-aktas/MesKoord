@@ -9,13 +9,14 @@ from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QGuiApplication, QKeySequence
 from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog, QDialogButtonBox, QFrame, QHBoxLayout, QLabel,
                                QMainWindow, QMessageBox, QProgressDialog, QPushButton, QScrollArea, QStackedWidget,
-                               QTabWidget, QVBoxLayout, QWidget)
+                               QSystemTrayIcon, QTabWidget, QVBoxLayout, QWidget)
 
 from .. import APP_NAME, APP_TITLE, __version__, config, lisans, marka
-from ..services import guncelleme
+from ..services import guncelleme, koruma
 from . import ortak
 from . import varliklar as V
 from .crud import CrudSayfasi
+from .koruma import KorumaBandi
 from .lisans_penceresi import LisansPenceresi
 from .sayfa_aktarim import AktarimSayfasi, surukle_dosyalar
 from .sayfa_ana import AnaSayfa
@@ -39,6 +40,7 @@ from .yan_menu import YanMenu
 
 STIL = marka.stil()
 DAR_EKRAN = 1280  # bu genişliğin altındaki ekranlarda menü ilk açılışta simge şeridi olarak gelir
+KORUMA_ARALIGI = 30 * 60 * 1000  # yasal süre taraması (ms); ilki açılıştan 5 sn sonra
 # Canlı yenilemede dokunulmayan sayfalar (kullanıcının kaydetmediği girişleri silinmesin)
 CANLI_YENILEME_DISI = (MevzuatParametreleri, TopluGirisSayfasi, AktarimSayfasi, BaglantiSayfasi, EsitlemeSayfasi)
 
@@ -164,8 +166,16 @@ class AnaPencere(QMainWindow):
         self.yan.daraldi.connect(lambda dar: self.ayar.setValue("menu_dar", dar))
         self.kurum_etiketi = self.yan.kurum_etiketi
         lay.addWidget(self.yan)
+        sag = QWidget()
+        sag_lay = QVBoxLayout(sag)
+        sag_lay.setContentsMargins(0, 0, 0, 0)
+        sag_lay.setSpacing(0)
+        self.koruma_bandi = KorumaBandi()
+        self.koruma_bandi.goster.clicked.connect(lambda: self.git(self.koruma_bandi.hedef))
+        sag_lay.addWidget(self.koruma_bandi)
         self.yigin = QStackedWidget()
-        lay.addWidget(self.yigin, 1)
+        sag_lay.addWidget(self.yigin, 1)
+        lay.addWidget(sag, 1)
         self.setCentralWidget(merkez)
         ekran = (self.screen() or QGuiApplication.primaryScreen()).availableGeometry()
         self.yan.dar_yap(self.ayar.value("menu_dar", ekran.width() < DAR_EKRAN, type=bool), kalici=False,
@@ -208,6 +218,12 @@ class AnaPencere(QMainWindow):
             self._yedek_zamanlayici.start(10 * 60 * 1000)
             QTimer.singleShot(90 * 1000, self._otomatik_yedek)
         QTimer.singleShot(20 * 1000, self._guncelleme_otomatik)
+
+        self._bildirilen_kritikler: set[str] = set()
+        self._bildirim_simgesi = None
+        self._koruma_zamanlayici = QTimer(self)
+        self._koruma_zamanlayici.timeout.connect(self.koruma_denetle)
+        self._koruma_zamanlayici.start(5 * 1000)
 
     # --- düzen ---
     def _menuler(self) -> None:
@@ -420,6 +436,8 @@ class AnaPencere(QMainWindow):
             self.yigin.addWidget(kap)
         self.yigin.setCurrentWidget(self._kap[ad])
         self.ayar.setValue("son_sayfa", ad)
+        if self.koruma_bandi.isVisible():
+            QTimer.singleShot(0, self.koruma_denetle)
 
     def gecerli_sayfa(self) -> QWidget | None:
         kap = self.yigin.currentWidget()
@@ -533,6 +551,49 @@ class AnaPencere(QMainWindow):
         hata = yedekleme.YedekAyarlari.yukle().son_hata
         self.statusBar().showMessage(hata or f"Otomatik yedek alındı: {yol.name}", 15000 if hata else 6000)
 
+    def koruma_denetle(self) -> None:
+        """Süresi geçen / bugün-yarın dolan işler: üst bant ve (yeni olanlar için) Windows bildirimi."""
+        if self._koruma_zamanlayici.interval() != KORUMA_ARALIGI:
+            self._koruma_zamanlayici.start(KORUMA_ARALIGI)
+        try:
+            liste = koruma.kritikler(self.db)
+        except Exception as e:  # noqa: BLE001
+            self.statusBar().showMessage(f"Süre denetimi yapılamadı: {e}", 10000)
+            return
+        self.koruma_bandi.ayarla(liste)
+        yeni = [k for k in liste if k.anahtar not in self._bildirilen_kritikler]
+        self._bildirilen_kritikler |= {k.anahtar for k in yeni}
+        if not yeni:
+            return
+        baslik = f"{marka.URUN}: {len(yeni)} acil iş (ceza riski)"
+        metin = yeni[0].mesaj[:220] + (f"\n(+{len(yeni) - 1} iş daha)" if len(yeni) > 1 else "")
+        simge = self._bildirim_simgesi_al()
+        if simge is not None:
+            simge.showMessage(baslik, metin, QSystemTrayIcon.Warning, 15000)
+        else:
+            self.statusBar().showMessage(f"{baslik}: {yeni[0].mesaj[:160]}", 30000)
+
+    def _bildirim_simgesi_al(self) -> QSystemTrayIcon | None:
+        if self._bildirim_simgesi is not None:
+            return self._bildirim_simgesi
+        if self.tepsi is not None:
+            simge = self.tepsi
+        elif QSystemTrayIcon.isSystemTrayAvailable():
+            simge = QSystemTrayIcon(marka.uygulama_simgesi(), self)
+            simge.setToolTip(marka.URUN)
+            simge.activated.connect(lambda _n: self._kritige_git())
+            simge.show()
+        else:
+            return None
+        simge.messageClicked.connect(self._kritige_git)
+        self._bildirim_simgesi = simge
+        return simge
+
+    def _kritige_git(self) -> None:
+        self.tepsiden_ac()
+        k = self.koruma_bandi.kritikler
+        self.git(k[0].git if k and k[0].git else "Ana Sayfa")
+
     def tepsiden_ac(self) -> None:
         """Tepsiden açılınca: hesaplar açıksa kimin açtığı yeniden sorulur (sunucu bilgisayarı ortak olabilir)."""
         if self.isHidden() and self.db.kimlik.hesapli:
@@ -573,6 +634,9 @@ class AnaPencere(QMainWindow):
             return
         if self._cikis_hazir or self._guvenli_cikis():
             e.accept()
+            self._koruma_zamanlayici.stop()
+            if self._bildirim_simgesi is not None:
+                self._bildirim_simgesi.hide()
             if self.tepsi is not None:
                 self.tepsi.hide()
                 QTimer.singleShot(0, QApplication.quit)

@@ -8,10 +8,11 @@ from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMessageBox, QPush
 
 from .. import config
 from ..mevzuat import AYLAR
-from ..services import baglanti, belgeler, raporlar, sgk_dosya, sigorta, ucret
+from ..services import baglanti, belgeler, raporlar, sgk_beyan, sgk_dosya, sigorta, ucret
 from ..services.baglanti import SISTEM_SOZLUK
 from ..services.utils import para
 from . import ortak
+from .sayfa_sgk_beyan import AylikBeyan
 from .sayfa_sgk_denetim import SgkKarsilastirma, SgkRiskleri
 from .sayfa_sgk_toplu import BilgiKontrolu, ListeDisiKalanlar, TopluCikisTarihi, TopluGirisTarihi
 
@@ -136,8 +137,9 @@ class AylikPrimListesi(QWidget):
             return None
         if not sessiz:
             dosya_sonucu_goster(self, sonuc, "e-Bildirge V2'de dönemi seçip dosyayı yükleyin; tahakkuk fişini "
-                                             "onayladıktan sonra Risk ve Öneriler sekmesinde belgeyi 'verildi' "
-                                             "işaretleyin.", "ebildirge" if bicim == "xml" else "")
+                                             "onayladıktan sonra 'Aylık Beyan (Adım Adım)' sekmesinde 'Beyanı "
+                                             "Kaydet' deyin; sonradan değişen kişiler orada izlenir.",
+                                "ebildirge" if bicim == "xml" else "")
         return sonuc
 
 
@@ -220,9 +222,10 @@ class GirisCikisBildirimleri(QWidget):
             return None
         sonuc.uyarilar[:0] = hatalar
         if not sessiz:
-            dosya_sonucu_goster(self, sonuc, "e-Bildirge > 4A Sigortalı İşe Giriş / İşten Ayrılış > 'Toplu' "
-                                             "seçeneğinden yükleyin. Onaydan sonra satırları 'Bildirildi' "
-                                             "işaretleyin.", "sgk4a" if bicim == "xml" else "")
+            turler = {t for _, t in kimlikler}
+            dosya_sonucu_goster(self, sonuc, "\n\n".join(
+                m for t, m in (("Giriş", sgk_beyan.GIRIS_YUKLEME), ("Çıkış", sgk_beyan.CIKIS_YUKLEME)) if t in turler),
+                "sgk4a" if bicim == "xml" else "")
         return sonuc
 
 
@@ -231,6 +234,7 @@ class SgkSayfasi(QTabWidget):
         super().__init__(parent)
         self.addTab(GirisCikisBildirimleri(db), "İşe Giriş / İşten Ayrılış")
         self.addTab(AylikPrimListesi(db), "Aylık Prim Hizmet Listesi")
+        self.addTab(AylikBeyan(db), "Aylık Beyan (Adım Adım)")
         self.addTab(SgkKarsilastirma(db), "Liste Karşılaştırma")
         self.addTab(SgkRiskleri(db), "Risk ve Öneriler")
         self.addTab(TopluGirisTarihi(db), "Toplu Giriş Tarihi")

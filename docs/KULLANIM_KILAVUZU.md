@@ -100,6 +100,12 @@ Bilgisayar laboratuvarına sessiz kurulum (bilişim sorumlusu için):
     Tıklayınca hesap ekranı açılır.
   - Ortada veritabanının yeri yazar.
   - Sağda lisans durumu yazar. Bitişe 30 gün veya daha az kaldıysa kırmızıya döner.
+- **Kırmızı uyarı bandı (ceza koruması):** Program açıldıktan birkaç saniye sonra ve yarım saatte bir yasal
+  süreleri tarar. Süresi geçmiş ya da bugün/yarın dolan bir iş varsa (işe giriş / işten ayrılış bildirgesi,
+  MESEM sözleşmesi, sözleşme imza süresi, SGK ceza riski) ekranın üstünde kırmızı bir bant çıkar ve yeni iş
+  Windows bildirimiyle de haber verilir. **"Ne yapmalıyım?"** işin yapılacağı ekranı açar; **"Sonra"** bandı
+  bir sonraki taramaya kadar gizler. İş yapılınca bant kendiliğinden kalkar. Süreleri ezbere bilmeniz
+  gerekmez: kırmızı bant görünmüyorsa acil iş yoktur.
 - **Sürükle-bırak:** Bir Excel, Word ya da PDF dosyasını pencerenin herhangi bir yerine bırakırsanız
   **Veri Aktarımı** ekranı açılır ve dosya oraya eklenir.
 - **Pencere boyutu:** Pencere ilk açılışta ekranınıza sığacak şekilde açılır. Sonraki açılışlarda son
@@ -290,11 +296,18 @@ Programın açılış ekranıdır. Solda sohbet bölümü, sağda "Süreçler" v
 - **"Yasal süreler ve uyarılar"** tablosunda şunlar listelenir:
   - Önceki ayın MUHSGK beyanı, dekont toplama ve devlet katkısı girişinin son günleri. Kalan süre 2 gün
     veya azsa Kritik, 7 gün veya azsa Uyarı olarak gösterilir. Son gün tatile denk gelirse sonraki iş
-    gününe kayar.
-  - Bekleyen veya süresi geçmiş SGK işe giriş/çıkış bildirimleri.
+    gününe kayar. Önceki ayın aylık prim belgesi "verildi" olarak kaydedildiyse MUHSGK satırı görünmez.
+  - Bekleyen veya süresi geçmiş SGK işe giriş/çıkış bildirimleri ("SÜRESİ GEÇTİ: bugün verin", "BUGÜN son
+    gün", kalan gün).
+  - **SGK Ceza Riski:** SGK > Risk ve Öneriler'deki Kritik ve Uyarı maddeleri (verilmemiş belge, yaş sınırını
+    aşan belge türü, tatilde çıkış, eksik gün vb.) olası ceza tutarıyla.
+  - **MESEM:** çıraklık sözleşmesinin ya da işyeri değişikliğinden sonraki yeni sözleşmenin son imza günü
+    14 gün kala; süresi geçen sözleşmeler tek Kritik satırda.
   - Devamsızlık sınırını aşan ya da sınıra yaklaşan öğrenciler.
   - Önümüzdeki 7 gündeki ziyaretler ve sonucu girilmemiş geçmiş ziyaretler.
   - Sözleşme numarası, personel sayısı, T.C. ve kurum bilgisi eksikleri.
+- **Satıra çift tıklayın:** işin yapılacağı ekran açılır (SGK satırı SGK Sigorta İşlemleri'ni, MESEM satırı
+  Yerleştirme ve Sözleşmeler'i açar).
 - "Yenile" düğmesi listeyi yeniler; ekran her açıldığında da yenilenir.
 
 ### Toplu Veri Girişi
@@ -561,7 +574,11 @@ Alanlar:
   (öğrenci künye / nüfus bilgileri raporu) **Veri Aktarımı** ile toplu yüklenir; SGK bildirgelerinde ve
   sözleşmelerde kullanılır.
 - **"Bakmakla yükümlü olunan (GSS anne/babadan)":** İşaretliyse SGK primi %1'dir (belge 7/49).
-  İşaretsizse %6'dır (belge 42/50).
+  İşaretsizse %6'dır (belge 42/50). Öğrenci 20 yaşını doldurunca program ertesi aydan başlayarak
+  kendiliğinden 42/50 ile bildirir (doğum tarihi girilmiş olmalı); işareti yine de kaldırın.
+- **"Başka bir işte sigortalı çalışıyor (kendi GSS'si var)":** Açık lise (MAOL) ya da yetişkin MESEM
+  öğrencisi kendi işyerinden 4A/4B/4C sigortalıysa işaretleyin. Genel sağlık sigortası primi ayrıca
+  ödenmez, belge 7/49 yazılır. Aylık beyan ön kontrolü MAOL öğrencilerini bu alan için ayrıca hatırlatır.
 - Doğum Tarihi, Cinsiyet, Telefon, Veli Adı Soyadı, Veli Telefon, IBAN, Adres.
 - **"Alt Sınıf Yılsonu Başarı Ortalaması"**, **"Kısa süreli uzaklaştırmadan ağır disiplin cezası var"** ve
   **"Sıralamaya girmeden gönderilir (şehit/gazi çocuğu, koruma/eğitim tedbiri)"**: İşletmeye gönderilecek
@@ -590,6 +607,10 @@ Alanlar:
 - **"Müsait Olmadığı Saatler":** "Tablodan seç..." düğmesiyle açılan çizelgede ders verilemeyecek saatleri
   işaretleyin. Gün adına basmak o günün bütün saatlerini işaretler. Elle de yazabilirsiniz: `1-*`
   Pazartesi bütün gün, `3-5` Çarşamba 5. saat demektir.
+- **"Ders programında tercihi öncelikli":** Engelli, engelli yakını (bakmakla yükümlü), 36 ayını doldurmamış
+  çocuğu olan ya da süt izni kullanan öğretmen (Ortaöğretim Kurumları Yönetmeliği md.12). Seçilince öğretmenin
+  tercih ettiği boş saatleri "Müsait Olmadığı Saatler"e işlemeniz istenir; işlenmezse İş Adımları ve
+  Mevzuat Denetimi uyarır. Otomatik yerleştirme bu saatlere kesinlikle ders koymaz.
 - Aktif.
 
 ### İşletmeler
@@ -636,6 +657,12 @@ Alanlar:
 - **Ders Konmayacak Saatler:** "Tablodan seç..." ile sınıfa ders yerleştirilmeyecek saatleri işaretleyin
   (ör. cuma son iki saat, her günün 1. saati). Elle yazımda `5-7` cuma 7. saat, `5-*` cuma bütün gün,
   `*-1` her günün 1. saati demektir. Otomatik yerleştirme bu saatlere ders koymaz.
+- **Öğretim Şekli:** Tam gün / Sabahçı / Öğlenci. İkili öğretimde sabahçı şubeye yalnızca sabah yarısına,
+  öğlenci şubeye yalnızca öğleden sonraki yarıya ders konur (yarının sınırı: Ayarlar > Ders Programı >
+  "İkili öğretimde sabahçı yarının son saati").
+
+MEM sınıflarında okul günü (teorik eğitim) haftada en az 1, en fazla 2 gün olmalıdır (Yönetmelik md.12/3);
+aykırıysa Ön Denetim ve İş Adımları **Kritik** uyarı verir.
 
 MTAL'de işletmelerde mesleki eğitim haftada 3 gün işletme + 2 gün okul (ya da 2 gün işletme + 3 gün okul)
 şeklinde yapılır (md.134); MEM için genellikle 1 gün okul + 4 gün işletme tanımlanır. Okul ve işletme günleri
@@ -677,6 +704,14 @@ Alanlar:
 - Tür \*: Kültür / Meslek / Atölye.
 - "Atölye/Lab. gerektirir".
 - **"Blok (ardışık saat)":** Örneğin 4 yazılırsa ders 4'er saatlik bloklar hâlinde yerleşir.
+- **"Blok Deseni":** Blokların eşit olmadığı dersler için, ör. 5 saatlik ders için `3+2`, 10 saatlik ders için
+  `4+4+2`. Doluysa "Blok" yerine bu desen kullanılır; ders dağılımında sınıfa özel desen de yazılabilir.
+- **"Öğle arasında bölünmez":** Ayarlar'da "Öğle arasında bütün blok dersler bölünmesin" kapalıysa yalnızca
+  bu işaretli derslerin blokları öğle arasında bölünmez.
+
+Adında "Beden Eğitimi" ya da "Müzik" geçen dersler mümkünse haftanın ilk ve son okul gününe; atölye/lab.
+gerektiren ya da türü "Atölye" olan uygulamalı dersler ardışık saatlere ve aynı gün teorik ders varsa öğleden
+sonraya yerleşir (Yönetmelik md.12).
 
 ### Atölye / Laboratuvarlar
 
@@ -690,7 +725,47 @@ puantajında dikkate alınır. Her eğitim yılı başında girin.
 
 ### Ders Dağılımı ve Atölye Yerleşimi
 
-İki sekmesi vardır.
+Sekmeler: İş Adımları ve Mevzuat, Ders Dağılımı, Sınıf / Öğretmen / Mekan (haftalık program), Çerçeve Öğretim
+Programları, Nöbet, Özel Durumlar.
+
+**"İş Adımları ve Mevzuat" sekmesi — programı buradan yönetin**
+
+Ders programını hazırlamanın 16 adımı sırasıyla listelenir (kurum ve günlük ders saati → sınıflar ve MEM
+günleri → öğretmenler ve öncelikli tercihler → çerçeve programa uygun ders dağılımı → öğretmen ataması →
+mekânlar → ders yükü → sınırlamalar → çakma → TEST (ön denetim) → DAĞITIM → KONTROL → md.12 uyumu → rehber
+öğretmenler → sürüm kaydı → e-Okul ve tebliğ). Her adımın durumu (Tamam / Eksik / Bilgi) kendiliğinden
+denetlenir; **satıra çift tıklayınca o işin yapıldığı ekran ya da sekme açılır.** Üstteki düğmeler:
+
+- **"Dağıtımı Başlat"**: haftalık program sekmesine geçip otomatik yerleştirmeyi başlatır.
+- **"Neden Yerleşmedi?"**: programda eksik kalan her dersin nedenini ve ne yapılacağını gösterir.
+- **"e-Okul Çizelgesi (Excel)"**: e-Okul'a girişte kullanılacak üç sayfalık çizelge: *Ders Görevlendirme*
+  (sınıf, ders, haftalık saat, öğretmen, e-Okul kısaltması), *Haftalık Program* (sınıf, gün, saat, ders,
+  öğretmen, mekân) ve *Tutarlılık* (öğretmensiz ders, eksik saat, aynı e-Okul kısaltmasını alan öğretmenler,
+  çerçeve programa uymayan dağılım). Tutarsızlık varsa önce gösterilir.
+- **"e-Okul ile Karşılaştır..."**: e-Okul'dan alınan sınıf/öğretmen programı çizelgesini (PDF ya da Excel)
+  programla saat saat karşılaştırır; farklı ders, farklı öğretmen, bir tarafta boş olan saatleri listeler.
+  Hiçbir veriyi değiştirmez.
+- **"Tebliğ ve Onay Belgesi (PDF)"**: öğretmenlerin haftalık ders, aylık karşılık ve ek ders saatleriyle
+  imza karşılığı tebliğ listesi; öğretmenler kurulu tarihi ve müdür onayı bölümüyle (Yönetmelik md.12).
+- **"Denetim Raporu (Excel)"**: iş adımları, mevzuat bulguları ve norm tablosu.
+
+Alttaki sekmeler:
+
+- **Mevzuat Denetimi** (çift tıklama ilgili ekranı açar):
+  - *Kritik*: öğretmenin haftalık yükü (ders + işletmelerde meslek eğitimi + rehberlik/kulüp/şeflik) aylık
+    karşılık + azami ek dersi aşıyor (Karar md.5, md.6); işletmelerde meslek eğitimi haftalık ya da günlük
+    azamiyi aşıyor (Karar md.15); MEM sınıfının okul günü 1-2 değil (Yönetmelik md.12/3).
+  - *Uyarı*: aylık karşılığı dolmayan öğretmen; öncelikli tercihli öğretmenin tercihi işlenmemiş; beden
+    eğitimi/müzik ilk ve son güne konmamış; uygulamalı ders ardışık değil; tahmini norm eksiği.
+  - *Bilgi*: aynı gün teorik ders öğleden sonraya, uygulamalı ders öğleden önceye düşmüş; rehber öğretmeni
+    atanmamış sınıflar; tahmini norm fazlası.
+- **Norm Kadro (tahmini)**: ders dağılımından branş başına haftalık ders yükü ve tahmini norm (Norm Kadro
+  Yönetmeliği md.18 genel bilgi/meslek dersleri, md.19 atölye-laboratuvar, md.21 rehberlik, md.22 alan ders
+  yükü = saat x grup sayısı; atölye/lab. derslerinde grup sayısı sınıf mevcuduna göre, MEM şubeleri
+  bölünmez, yöneticilerin okuttuğu dersler düşülür, işletmelerde meslek eğitimi atölye normuna eklenir) ve
+  müdür yardımcısı normu. Resmî norm MEBBİS'te belirlenir; tablo planlama içindir.
+- **Maaş / Ücret İşaretleri**: seçilen öğretmenin programındaki her saatin aylık karşılığından (M) mı, ek
+  ders ücretinden (Ü) mi yapıldığı, azamiyi aşan ödenmez saatler ve toplamlar.
 
 **"Ders Dağılımı (Sınıf-Ders-Öğretmen)" sekmesi**
 
@@ -713,7 +788,7 @@ Ders dağılımını sıfırdan girmek yerine **"Çerçeve Programdaki Zorunlu D
 "Sınıf:" filtresinde bir sınıf seçiliyse o sınıfın penceresi açılır, seçili değilse bütün sınıflara
 seviye, alan ve dallarına göre zorunlu dersler açılır. Ardından yalnızca öğretmenleri atamanız yeterlidir.
 
-**"Haftalık Program / Atölye Yerleşimi" sekmesi**
+**"Sınıf / Öğretmen / Mekan" sekmesi (haftalık program)**
 
 1. **"Görünüm:"** listesinden Sınıf, Öğretmen ya da Atölye/Lab. seçin, yanındaki listeden hangisini
    göreceğinizi belirleyin.
@@ -734,27 +809,44 @@ seviye, alan ve dallarına göre zorunlu dersler açılır. Ardından yalnızca 
 3. **"Ön Denetim"** yerleştirmeden önce yerleşmeyi engelleyecek sorunları listeler: ders dağılımı boş,
    sınıfın haftalık saati okul günlerine sığmıyor, öğretmenin dersi müsait saatlerine, koordinatörlük
    günlerine ya da günlük azami ders sınırına sığmıyor, sınıf mevcudu atölyelere sığmıyor, atölye ihtiyacı
-   atölye sayısını aşıyor, blok ders günlük saatten uzun, birleştirilen derslerin saatleri farklı.
+   atölye sayısını aşıyor, blok ders günlük saatten uzun, birleştirilen derslerin saatleri farklı, bir
+   bloğun sığabileceği hiç gün yok (Kritik) ya da blok sayısından az gün var, dersin öğretmeni atanmamış,
+   MEM sınıfının okul günü 1-2 değil.
 4. **"Otomatik Yerleştir"** kilitli olmayan bütün dersleri silip yeniden yerleştirir (onay ister; ön
-   denetimde kritik sorun varsa önce onları gösterir). Şunlar dikkate alınır:
-   - Öğretmen müsaitliği, sınıfın okul günleri, blok uzunlukları.
-   - İki öğretmenli (grup) dersler: iki öğretmen de bağlanır; gerektiğinde ikinci atölye kullanılır.
-   - Birleştirilmiş dersler: aynı saatte birlikte yerleşir.
-   - Atölye kapasitesi: "Atölye seçiminde kapasiteyi (öğrenci/grup mevcudu) gözet" açıksa sınıf mevcuduna
-     yeten en küçük atölye.
-   - "Koordinatörlük görev günlerini okulda derse kapat" açıksa koordinatörlük günleri. Bu durumda yerleşmeyen
-     ders kalırsa program bu günleri gerektiği kadar açar ve sonuçta not düşer.
-   - "Bir öğretmene günde en çok ders saati" (0 ise sınırsız).
+   denetimde kritik sorun varsa önce onları gösterir). **Parametrelere kesin uyulur; hiçbir kural kendiliğinden
+   gevşetilmez.** Kesin kurallar:
+   - Öğretmen müsaitliği (öncelikli tercihler dâhil), sınıfın okul günleri ve ders konmayacak saatleri, okul
+     geneli ders konmayacak saatler, sabahçı/öğlenci şube yarısı, blok uzunlukları ve blok desenleri.
+   - İki öğretmenli (grup) dersler, birleştirilmiş dersler, atölye kapasitesi.
+   - "Koordinatörlük görev günlerini okulda derse kapat", "Bir öğretmene günde en çok ders saati", öğle
+     arası, "Öğretmen aynı gün hem sabah hem öğleden sonra derse girmesin", aynı güne gelmeyecek ders grupları
+     ve "Bir öğretmenin aynı sınıftaki farklı dersleri aynı güne gelmesin".
 
-   Bu üç ayar Ayarlar > Mevzuat Parametreleri'ndedir.
+   Tercihler (mümkün olduğunca): beden eğitimi/müzik ilk ve son okul gününe, teorik dersler sabah ve
+   uygulamalı dersler öğleden sonra, öğretmen ve sınıf boş saatleri en az, öğretmenlere boş gün. Yerleştirme
+   bitince "iyileştirme turu" sayısı kadar, kesin kurallar bozulmadan bloklar daha iyi yerlere taşınır.
+   Bütün ayarlar Ayarlar > Mevzuat Parametreleri > Ders Programı'ndadır.
 
-   Sonuçta ya "Tüm dersler çakışmasız yerleşti" yazar ya da yerleşemeyen bloklar listelenir.
+   Bütün dersler yerleşirse "Tüm dersler çakışmasız yerleşti" yazar. **Yerleşmeyen ders kalırsa "Yerleşmeyen
+   Dersler ve Nedenleri" penceresi açılır**: her blok için başlıca engel, engellerin gün/saat sayısıyla
+   ayrıntısı ve örnekleri (ör. "Öğretmen müsait değil (5/8 saat diliminde): Pazartesi 1.-2. saat: Ali Can",
+   "Öğretmenin koordinatörlük (işletmelerde mesleki eğitim) günü", "Sınıfın okul günü değil", "Blok öğle
+   arasında bölünüyor", "Öğretmen o saatte başka derste", "Uygun atölye/laboratuvar boş değil") ve
+   **"Ne yapmalı?"** önerileri (hangi ekranda hangi ayarın değişeceği) gösterilir;
+   Excel'e aktarılabilir. Ayrıca "kurallar gevşetilseydi N blok daha yerleşebilirdi" bilgisi verilir; bu yalnızca
+   bilgidir, program kendiliğinden gevşetmez. Gevşetmeyi bilerek istiyorsanız Ayarlar'da "Kurallara uyularak
+   yerleşmeyen ders kalırsa ... kuralları gevşetilsin" seçeneğini açın.
+
+   **"Neden Yerleşmedi?"** düğmesi aynı pencereyi mevcut program için (elle yaptığınız yerleşimler yerinde
+   kalarak) istediğiniz an açar.
 
 5. **Elle düzeltme (sağ tık):**
    - Dolu hücrede "Kilitle", "Kilidi Aç" ve "Sil" seçenekleri vardır (birleştirilmiş derste bütün sınıflar
      için birlikte uygulanır).
    - Boş hücrede, Sınıf görünümündeyken, "Ders ekle..." seçeneği vardır; iki öğretmenin de boş olduğu ve
-     atölyenin dolu olmadığı denetlenir.
+     atölyenin dolu olmadığı denetlenir. Seçilen saat bir parametreye aykırıysa (okul günü değil, ders
+     konmayacak saat, öğretmen müsait değil, koordinatörlük günü, günlük azami, öğle arasında bölünme, yarım
+     gün, aynı gün kuralları) nedenleriyle sorulur; onaylarsanız kilitli eklenir.
    - Kilitli hücreler sarı görünür ve otomatik yerleştirmede yerinde kalır. **"Kilitleri Aç"** bütün
      kilitleri kaldırır.
 6. Sağ paneldeki "Eksik kalan ders saatleri" listesi yerleşmeyen saatleri gösterir. Hücrelerde ikinci
@@ -764,8 +856,8 @@ seviye, alan ve dallarına göre zorunlu dersler açılır. Ardından yalnızca 
    - **"Excel (Tüm Programlar)"**: her sınıf, öğretmen ve atölye için ayrı sayfa.
    - **"PDF (Bu Tablo)"**: kurum logolu, yatay A4.
 
-Yerleşemeyen ders kalırsa öğretmenin müsait olmadığı saatleri, sınıfın okul günlerini, atölye sayısını ya
-da blok uzunluklarını gözden geçirin.
+Yerleşemeyen ders kalırsa "Neden Yerleşmedi?" penceresindeki önerileri sırayla uygulayıp yeniden
+yerleştirin.
 
 **"Çerçeve Öğretim Programları" sekmesi**
 
@@ -803,8 +895,10 @@ Ders programını hazırlarken ve yıl içinde değiştirirken kullanılan yard�
 - **"Kural Denetimi":** Mevcut programda sınıfın ders konmayacak saatine, öğle arasına ya da aynı gün
   kurallarına uymayan yerleri listeler.
 
-Otomatik yerleştirme bu kurallara ve Sınıflar / Şubeler'deki **Ders Konmayacak Saatler**'e uyar. Kurallara
-uyularak bütün dersler yerleşemezse aynı gün kuralı gerektiği kadar gevşetilir ve sonuçta not düşülür.
+Otomatik yerleştirme bu kurallara ve Sınıflar / Şubeler'deki **Ders Konmayacak Saatler**'e kesin uyar.
+Kurallara uyularak bütün dersler yerleşemezse kural gevşetilmez; yerleşmeyen dersler nedenleriyle listelenir
+ve gevşetilseydi kaç bloğun daha yerleşeceği bilgi olarak yazılır. Ayarlar'da "... kuralları gevşetilsin"
+açılırsa eski davranış (aynı gün ve koordinatörlük günü kurallarının gerektiği kadar gevşetilmesi) geçerli olur.
 
 **"Toplu Çakma" sekmesi**
 
@@ -865,8 +959,44 @@ Dönem formundaki diğer ayarlar:
 - **"Belge başlığı (Başlık ve Onay Bilgisi)"**, **"Düzenleyen"** ve **"Onaylayan"** (unvanlarıyla): belgelerin
   başlığı ve imza blokları. Başlık boşsa "<eğitim yılı> Eğitim-Öğretim Yılı <dönem adı>", onaylayan boşsa kurum
   bilgilerindeki okul müdürü yazılır.
+- **"Sınavlar ders yılı içinde mi?"** (Otomatik / Evet / Hayır): evetse öğretmen koordinatörlük görev gününde ve
+  (Ayarlar > Ders Programı > **"Ders saatlerinin başlangıç-bitişleri"** girilmişse) dersinin denk geldiği seansta
+  görev almaz; işletme gününde olan öğrencinin sınavı mümkünse okulda olduğu güne konur. "Otomatik": dönem, kurum
+  bilgilerindeki ders yılı başlangıcından sonra ve yaz tatili dışındaysa evet (ör. Kasım ve Şubat sorumluluk
+  sınavları evet, ders yılı başlamadan yapılan Eylül sınavları hayır).
 
-Önerilen sıra: seanslar → sınavlar ve öğrenciler → öğretmenler → salonlar → planlama → çıktılar.
+Önerilen sıra: seanslar → sınavlar ve öğrenciler → öğretmenler → salonlar → planlama → çıktılar. **"İş Adımları"**
+sekmesi bu sırayı adım adım izler.
+
+**"İş Adımları" sekmesi**
+
+Sorumluluk / tek ders sınavı sürecinin bütün adımları ve her adımın durumu (Tamam / Eksik / Bilgi) kendiliğinden
+denetlenir; satıra çift tıklayınca ilgili sekme ya da dönem ayarları açılır. Adımlar: dönem ve tarihler; e-Okul'dan
+sorumlu öğrenci listesi (e-Okul > Ortaöğretim Kurum İşlemleri > Sorumluluk/Tasdikname İşlemleri > Sorumluluk ve OYS
+Puanları > yazıcı simgesi > "OOK12001R012 Sorumlu Dersi Olan Öğrenciler ve Dersleri (Önceki Sınıflar)" > Excel
+(Sadece Veri)); öğrenci durumu (okuldan ayrılanlar; tek ders döneminde 12. sınıf olmayan ya da birden çok sınavı
+olanlar); sınav şekli ve birleştirme; seans çizelgesinin yeterliliği (en çok sınavı olan öğrenciye göre gereken en az
+gün); öğretmenler ve görev alamayacakları seanslar; ders ve gün kuralları; salon kapasitesi; yerleştirme;
+görevlendirme; salon yerleşimi; denetim; onay ve imza bilgileri; belgeler ve tebliğ; sınav günü yoklaması; görev
+ücretlerinin ek ders puantajına aktarılması; sonuçların e-Okul'a girilmesi.
+
+- **"Hepsini Yap"**: Planlama sekmesindeki "Hepsini Yap" ile aynıdır (aşağıya bakınız).
+- **"Neden Yerleşmedi?"**: yerleşmeyen her sınav için hangi engelin kaç seansı kapattığı, engel olan sınavlar,
+  sınav yükü açık günlere sığmayan öğrenciler, görevli / salon açığı ve **"Ne yapmalı?"** önerileri. **"Excel'e
+  Aktar"** ile kaydedilir.
+- **"Kural Önerilerini Ekle"**: ortak öğrencisi olan ilişkili dersler (matematik-geometri; fizik-kimya-biyoloji;
+  edebiyat-dil ve anlatım) için "ortak öğrencisi varsa aynı güne gelmesin" kuralı ekler (önce listeyi gösterir).
+- **"Birleştirme Önerileri..."**: aynı ders, seviye ve şekilde farklı grup koduyla açılmış sınavları (ör. EML ve
+  ATL listelerinden gelen "Matematik 9") tek sınavda birleştirir; ayrı tutulan OYS sınavları önerilmez. Önce yedek
+  alınır.
+- **"Ek Derse Aktar"**: ücretli komisyon ve gözcü görevleri görev günlerine göre Ek Ders Puantajına "Sınav Görevi"
+  kaydı olarak yazılır. Gelmediği, ücretsiz ve yıllık sınır dışı görevler aktarılmaz. Yeniden basılırsa önceki
+  aktarımın yerine geçer (çift kayıt olmaz); görevler sonradan değişirse İş Adımları ve Ana Sayfa uyarır.
+
+Ana Sayfa'da sınav dönemi yaklaşırken (14 gün) yerleşmemiş sınav, eksik görevli ve kritik denetim bulgusu; her şey
+hazırsa takvimi ilan etme ve görevlendirme yazılarını tebliğ etme hatırlatması; dönem bittikten sonra 30 gün
+boyunca ek ders aktarımı ve puanların e-Okul'a girilmesi hatırlatılır. Asistana **"sınav iş adımları"**,
+**"sınavları planla"**, **"sınav ücretlerini ek derse aktar"** yazılabilir.
 
 **"Seans Çizelgesi" sekmesi**
 
@@ -916,8 +1046,9 @@ Dönem formundaki diğer ayarlar:
 Dönem açılınca etkin öğretmenler listeye gelir; müdür ve müdür yardımcıları varsayılan olarak görev almaz.
 **"Görev Alır"** / **"Görev Almaz"**, **"Günlük Sınır..."** (öğretmene özel günlük görev sınırı) ve **"Kapalı
 Seanslar..."** (öğretmenin görev alamayacağı seanslar) seçili öğretmenlere uygulanır. Öğretmenin okul nöbet günü
-ve ders programında tamamen müsait olmadığı günlerin seansları dönem açılırken kapalı gelir; sonradan değişenler
-için **"Nöbet / Müsaitlikten Doldur"** (seçili yoksa bütün öğretmenler) kullanılır. **"Önceki Görev..."** aynı
+ve ders programında tamamen müsait olmadığı günlerin seansları dönem açılırken kapalı gelir; sınavlar ders yılı
+içindeyse koordinatörlük görev günleri ve dersinin denk geldiği seanslar da kapalı gelir. Sonradan değişenler için
+**"Nöbet / Müsaitlikten Doldur"** (seçili yoksa bütün öğretmenler) kullanılır; "Hepsini Yap" bunu kendisi yapar. **"Önceki Görev..."** aynı
 eğitim yılında bu dönemden önce alınan sınav görevi sayısıdır (yıllık ücretli görev sınırı için).
 
 Sağdaki sekmeler:
@@ -941,8 +1072,13 @@ geçerlidir.
 
 **"Planlama" sekmesi**
 
-- **"Hepsini Yap"**: sınavları yerleştirir, görevlileri atar ve öğrencileri salonlara dağıtır. Adımlar ayrı ayrı
-  da çalıştırılabilir: **"Sınavları Yerleştir"**, **"Görevlileri Ata"**, **"Salonlara Yerleştir"**.
+- **"Hepsini Yap"**: öğretmenlerin nöbet / koordinatörlük / ders saatlerini kapalı seanslara işler, sınavları
+  yerleştirir, görevlileri atar, öğrencileri salonlara dağıtır ve planı denetler. Adımlar ayrı ayrı da
+  çalıştırılabilir: **"Sınavları Yerleştir"**, **"Görevlileri Ata"**, **"Salonlara Yerleştir"**, **"Denetle"**.
+- Yerleşemeyen sınav kalırsa sonuçta her birinin ayrıntılı nedeni ve önerileri yazılır; ayrıca dönemin kaç sınav
+  günü uzatılması (son günün oturum düzeniyle, hafta sonu hariç) ya da öğrencinin günlük sınav sınırının bir
+  artırılması bütün sınavları sığdırıyorsa öneri olarak bildirilir (plan değişmez). **"Neden Yerleşmedi?"** ayrıntılı
+  pencereyi açar.
 - Yerleştirmede bir öğrencinin aynı seansta iki sınavı olmaz; günlük sınav sınırı, uygulamalı sınav günü
   (uygulamalı sınavı olan öğrencinin o gün başka sınavı olmaz), ders ve gün kuralları, bağlı sözlü sınavlar,
   kapalı seanslar, görev alabilecek öğretmen sayısı ve salon kapasitesi gözetilir. 12. sınıf öğrencilerinin
@@ -985,7 +1121,8 @@ geçerlidir.
   girilmemişse sayı ve ad yerleri elle doldurulacak şekilde boş bırakılır.
 
 **"Tüm Çıktıları Üret"** hepsini dönemin klasörüne kaydeder (`Ciktilar\Sınav Planlama\<dönem adı>`);
-**"Klasörü Aç"** bu klasörü açar.
+**"Klasörü Aç"** bu klasörü açar. **"Görev Ücretlerini Ek Ders Puantajına Aktar"**, İş Adımları'ndaki "Ek Derse
+Aktar" ile aynıdır.
 
 ### Yerleştirme ve Sözleşmeler
 
@@ -1002,10 +1139,30 @@ Alanlar:
 - Durum \*: Aktif / Sona Erdi / Feshedildi.
 - Fesih/Ayrılış Nedeni (listeden seçilir).
 
-Sözleşmeler ders yılı sonu ile yeni ders yılının ikinci haftası sonu arasında imzalanır; MEM'de ilk
-yerleştirmede iki ay, işyeri değişikliğinde iki hafta süre vardır (md.143). Süre geçtiği hâlde **Sözleşme
+Sözleşmeler ders yılı sonu ile yeni ders yılının ikinci haftası sonu arasında imzalanır; MESEM'de ilk
+yerleştirmede iki ay, işyeri değişikliğinde iki hafta süre vardır (md.143). MESEM sözleşmesinin son günü
+14 gün kala Ana Sayfa'da, son gün geldiğinde kırmızı bantta görünür. Süre geçtiği hâlde **Sözleşme
 Tarihi** boş olan yerleştirmeler Veri Denetiminde kritik olarak listelenir. Süre, _Ayarlar > Kurum
 Bilgileri_'ndeki **Ders Yılı Başlangıcı**'na göre hesaplanır.
+
+**Aynı okulda MESEM ve MAOL:** Sınıfın programı "MEM" ya da öğrencinin statüsü Aday Çırak / Çırak / Kalfa
+ya da yerleştirme türü Çıraklık ise öğrenci MESEM çırağı sayılır (SGK sigorta kolu 7, çıraklık sözleşmesi).
+Sınıfın programı "MAOL" ya da statüsü Açık Lise ise öğrenci açık lise öğrencisidir; 12. sınıfta olsa da
+"işletmeye gitmesi gereken" sayılmaz, işletmeye yerleştirilirse başka işte sigortalı olup olmadığı sorulur.
+
+**Kaydettikten sonra "şimdi ne yapmalı" penceresi:** Yeni yerleştirme kaydedildiğinde ya da başlangıç /
+bitiş tarihi değiştirildiğinde program kendiliğinden bir pencere açar ve şunları söyler:
+
+- İşe giriş ya da işten ayrılış bildirgesi gerekiyor mu (15 gün içinde işletme değişikliğinde gerekmez),
+  son günü ve gecikirse olası idari para cezası (süre bitiminden 30 gün içinde kendiliğinden verilirse
+  dörtte bire iner), belge türü.
+- Bitiş tarihi ara tatil / yarıyıl içindeyse uyarı (tatilde ayrılış bildirilmez).
+- Sözleşmenin son imza günü (MESEM'de çıraklık sözleşmesi), T.C. kimlik numarası geçersizse uyarı.
+- MAOL öğrencisi için "başka işte sigortalı" hatırlatması.
+
+**"SGK Bildirge Dosyasını Şimdi Hazırla"** düğmesi 4A toplu XML dosyasını üretir ve SGK'ya yükleme
+adımlarını gösterir. Aynı pencere "Sınıfı Toplu Yerleştir", "Seçilenleri Sona Erdir" ve SGK'daki toplu
+giriş / çıkış tarihi işlendikten sonra da açılır.
 
 Okulda alan eğitimi gören öğrenciler için işletme seçmeden **"Okulda Alan Eğitimi"** türünde kayıt açın
 (SGK belge türü 49/50). Ara tatil, yarıyıl ve yaz tatillerinde bitiş tarihi girilmez.
@@ -1027,8 +1184,8 @@ Eylem düğmeleri:
     (md.143). Fesih sayılan nedenlerde Durum "Feshedildi", diğerlerinde "Sona Erdi" olur.
   - Bitiş tarihi bugün olur.
   - SGK işten ayrılış bildirgesi **SGK Sigorta İşlemleri** ekranında listelenir.
-  - "İşyeri değişikliği" seçilen MEM öğrencisi iki hafta içinde yeni işletmeye yerleştirilmezse Veri
-    Denetimi uyarır.
+  - "İşyeri değişikliği" seçilen MESEM öğrencisi için yeni sözleşmenin son günü Ana Sayfa'da gün gün
+    izlenir; iki hafta içinde yeni işletmeye yerleştirilmezse Veri Denetimi kritik uyarı verir.
 - **"Öğrenci Seçimi (md.136)...":** **Komisyon ve İzleme İşleri** ekranının öğrenci seçimi sekmesini açar.
 
 Belgeler `Ciktilar\<Belge adı>\<Öğrenci>_<İşletme>.docx` olarak kaydedilir.
@@ -1158,7 +1315,7 @@ onayına sunulacak programı hazırlar.
 
 ### SGK Sigorta İşlemleri
 
-Sekiz sekmesi vardır.
+Dokuz sekmesi vardır.
 
 **"İşe Giriş / İşten Ayrılış" sekmesi**
 
@@ -1210,8 +1367,43 @@ Sekiz sekmesi vardır.
     sonraki 2 hane kontrol no, son 3 hane aracı no). Boşluk ve noktalar dikkate alınmaz.
   - Kanun numarası (teşvik yoksa 00000), meslek kodu, sigorta kolları, görev kodu ve ayrılış nedeni aynı
     parametre grubundan değiştirilebilir.
-  - Belgeyi yükleyip onayladıktan sonra Risk ve Öneriler sekmesinde "APHB verildi" önerisini uygulayın.
+  - Belgeyi yükleyip onayladıktan sonra "Aylık Beyan (Adım Adım)" sekmesinde **"Beyanı Kaydet"**'e basın.
 - Hesap kuralları bölüm 11'dedir. Beyan son günü izleyen ayın 26'sıdır.
+
+**"Aylık Beyan (Adım Adım)" sekmesi**
+
+Aylık prim ve hizmet belgesini hatasız vermek ve sonradan değişen kayıtları bütün belgeyi iptal etmeden
+düzeltmek için kullanılır. Dönemi seçin.
+
+1. **Ön kontrol** (üst tablo): belgeyi vermeden önce e-Bildirge'nin reddedeceği ya da ceza doğuracak durumlar
+   denetlenir. Her satır "Tamam" (yeşil), "Dikkat" (sarı) ya da "Sorun" (kırmızı) olarak gösterilir; satıra
+   çift tıklayınca düzeltileceği ekran açılır.
+   - İşyeri bilgileri: 26 haneli sicil, kurum adı (boşsa e-Bildirge "Hata Satırı 3" verir), adres.
+   - Bildirilecek sigortalılar ve belge türlerine göre sayıları.
+   - Devamsızlıkların işlenmesi: ay bitmiş ama dönem için devamsızlık kaydı yoksa e-Okul > Günlük Devamsızlık
+     Girişi > Raporlar > "Öğrenci Devamsızlık Ayrıntılı (OOK08001R060)" raporunu Excel olarak alıp Veri
+     Aktarımı'na sürükleyin; yoksa eksik günler belgeye yazılamaz.
+   - T.C. kimlik numaraları, 18 karakteri aşan ad / soyadlar.
+   - İşe giriş bildirgeleri: girişi "bildirildi" işaretli olmayan sigortalılar (e-Bildirge girişi olmayan
+     sigortalıyı kabul etmez).
+   - Liste dışı kalan aktif öğrenciler, bakmakla yükümlülük yaşını doldurup belge türü değişmesi gerekenler.
+   - Önceki ayın belgesi ve bu ayın belgesi (son gün, verildi mi, verildikten sonra değişiklik var mı).
+2. Aylık Prim Hizmet Listesi sekmesinden XML'i üretip e-Bildirge V2'ye yükleyin, tahakkuku onaylayın.
+3. **"Beyanı Kaydet (Verildi)"** dönemin o anki listesini verilen belge olarak saklar (belge "verildi" de
+   işaretlenir). Belgeyi başka bir programla verdiyseniz yüklediğiniz XML'i **"Beyanı XML'den Al..."** ile
+   okutun; asıl, ek ve iptal belgelerinin hepsi kaydedilebilir.
+4. Belge verildikten sonra işlenen devamsızlık, nakil, geriye dönük çıkış ya da belge türü değişikliği alt
+   tabloda listelenir: "Değişti" (sarı), "Eklenecek" (mavi), "İptal edilecek" (kırmızı). Her satırda beyan edilen
+   ve şimdiki gün / kazanç ile neyin değiştiği yazar.
+5. **"Düzeltme Dosyalarını Üret (İptal + Ek)"** yalnızca bu kişiler için iki XML hazırlar: iptal belgesi beyan
+   edilen değerlerle, ek belge güncel değerlerle. e-Bildirge'de önce iptal, sonra ek dosyasını yükleyip
+   onaylayın ve **"Düzeltmeyi Kaydet"**'e basın. Son gün geçmişse tahakkuk nedeni B yazılır ve tahmini idari para
+   cezası gösterilir.
+6. Yanlış kaydedilen son belge kaydını **"Son Beyan Kaydını Sil"** geri alır (e-Bildirge'deki belgeye dokunmaz).
+   **"Excel'e Aktar"** ön kontrol ve farkları iki sayfalı dosyaya yazar.
+
+Belge verildikten sonra kayıtları değişen dönemler Risk ve Öneriler sekmesinde de uyarı olarak görünür. Asistan'a
+"ekim sgk ön kontrol", "ekim sgk belgesi verildi" ya da "ekim sgk düzeltme" yazarak aynı işleri yapabilirsiniz.
 
 **"Liste Karşılaştırma" sekmesi**
 
@@ -1248,6 +1440,8 @@ dayanağını, son tarihini ve tahmini cezayı gösterir. Kritik satırlar kırm
   bitiş tarihleri.
 - Son bir yılda geç verilmiş giriş bildirgeleri (ceza tebligatı gelebilir).
 - Son iki ayın verilmemiş aylık prim hizmet belgesi.
+- Son üç ayda verildikten sonra kayıtları değişen belgeler (iptal + ek düzeltme gerekir; süre geçtiyse tahmini
+  ek belge cezası).
 
 Satırları seçip **"Seçili Önerileri Uygula"**'ya basarak "bildirildi" işaretleme, aylık prim hizmet belgesinin
 verildiğini kaydetme ya da "bakmakla yükümlü" işaretini kaldırma gibi düzeltmeleri tek seferde yapabilirsiniz.
@@ -1263,6 +1457,10 @@ sınıflarda (12. sınıf, MEM, 11. sınıfta işletmeye başlayan program) "İ�
 "Çıraklık"), diğerlerinde "Okulda Alan Eğitimi" açılır. **"Giriş Tarihini İşle"** seçili (seçim yoksa tüm)
 öğrencilere tek tarihle sigorta başlangıcı açar; açılan kayıtlar "İşe Giriş / İşten Ayrılış" sekmesinde
 bildirim bekleyenlere düşer. Önceki (bitmiş) kaydı olanlarda o kayıt bilgi olarak gösterilir.
+**"İşe Giriş XML Üret (bu tarih)"** seçilen tarihte başlayan ve bildirimi bekleyen kayıtlar için (sınıf
+filtresine göre) SGK 4A toplu işe giriş XML'ini hazırlar. SGK 4A > Talep İşlemleri > Talep Yükleme > İşe Giriş
+Talebi Yükleme ile yükleyin; "Talepleri Görüntüle"de kayıt sayısını 100 yapıp "Seçili Talepleri Onayla"ya bir
+kez basın ve bekleyin, her 100 kişide "Toplu PDF Döküm" alın.
 
 **"Toplu Çıkış Tarihi" sekmesi**
 
@@ -1270,6 +1468,19 @@ Açık yerleştirmeleri listeler ("Yalnızca bitiş tarihi girilmemişler" işar
 Çıkış tarihi ve nedeni seçip **"Çıkış Tarihini İşle"**'ye basın: dönem sonu için "Süre bitti (dönem sonu)",
 mezuniyet, nakil, kayıt silme vb. Fesih sayılan nedenlerde durum "Feshedildi", diğerlerinde "Sona Erdi" olur.
 Başlangıcından önceki bir tarih verilen kayıtlar atlanır ve bildirilir.
+
+Sekmenin üstündeki **toplu çıkış ön kontrolü** seçilen tarihe göre güncellenir: önceki ayın aylık prim ve hizmet
+belgesi verilmiş mi (toplu çıkıştan önce verilmelidir; çıkış ayının belgesi çıkışlardan sonra verilir), çıkış
+ayının devamsızlıkları aktarılmış mı (ayrılış bildirgesindeki eksik gün buradan hesaplanır), ayrılış nedeni kodu
+(22 - Diğer nedenler), ders yılı sonu, tarih ara tatil / yarıyıla denk geliyor mu ve kaç açık kayıt olduğu.
+Sorun varsa çıkış işlenirken uyarılırsınız.
+
+**"İşten Ayrılış XML Üret (bu tarih)"** seçilen tarihte biten ve bildirimi bekleyen kayıtlar için 4A toplu işten
+ayrılış XML'ini hazırlar. SGK 4A > Talep İşlemleri > Talep Silme > İşten Çıkış Talepleri Silme'den eski
+yıllardan kalan talepleri silin, sonra Talep Yükleme > İşten Çıkış Talebi Yükleme ile dosyayı yükleyin.
+"Seçili Talepleri Onayla"ya bir kez basıp bekleyin (birden çok basmak hata verir), her 100 kişide "Toplu PDF
+Döküm" alın; hata veren öğrencileri (özellikle açık lise) tek tek çıkarın. Onaydan sonra İşe Giriş / İşten
+Ayrılış sekmesinde "Bildirildi" işaretleyin.
 
 **"Liste Dışı Kalanlar" sekmesi**
 

@@ -17,11 +17,10 @@ from pathlib import Path
 from typing import Any
 
 from .. import config
-from ..mevzuat import isletmeye_giden_sinif
+from ..mevzuat import isletmeye_giden_sinif, mem_mi
 from . import aktarim, okuyucu, sigorta
 from .aktarim import IceAktarmaTanimi, metin, norm, sayi, tr_ad
 from .okuyucu import Tablo
-from .sgk_dosya import CIRAK_STATULERI
 from .utils import ay_araligi, para, tc_gecerli
 
 SGK_LISTESI = IceAktarmaTanimi("sgk_liste", "SGK Sigortalı / Hizmet Listesi", [
@@ -286,7 +285,7 @@ def yerlestirme_turu_tahmini(db, ogrenci_id: int, belge: str | None = None) -> s
     """SGK belge türü (49/50 okulda, 7/42 işletmede) yoksa öğrencinin sınıfı ve statüsünden yerleştirme türü."""
     o = db.q1("""SELECT o.statu, s.program, s.seviye FROM ogrenciler o LEFT JOIN siniflar s ON s.id = o.sinif_id
                  WHERE o.id = ?""", (ogrenci_id,))
-    cirak = bool(o) and ((o["program"] or "").upper().startswith("MEM") or o["statu"] in CIRAK_STATULERI)
+    cirak = bool(o) and mem_mi(o["program"], o["statu"])
     okul_belgeleri = {str(db.ayar("belge_okul_yukumlu")), str(db.ayar("belge_okul_degil"))}
     if belge and str(belge) in okul_belgeleri:
         return "Okulda Alan Eğitimi"

@@ -187,6 +187,20 @@ def cikisi_geri_al(db, yerlestirme_ids: list[int]) -> IslemSonucu:
     return sonuc
 
 
+def bildirge_bekleyenler(db, tarih_: date, tur: str, sinif_ids: list[int] | None = None) -> list[int]:
+    """`tarih_` tarihinde başlayan (tur 'Giriş') ya da biten ('Çıkış') ve SGK bildirimi bekleyen yerleştirmeler;
+    toplu işe giriş / işten ayrılış XML'i için. İşletme değişikliği gibi bildirim gerektirmeyenler alınmaz."""
+    adaylar = [b.yerlestirme_id for b in sigorta.bekleyen_bildirimler(db, tarih_, ileri_gun=0)
+               if b.tur == tur and b.olay_tarihi == tarih_ and not b.bildirildi]
+    if sinif_ids is None or not adaylar:
+        return adaylar
+    kosul, params = _sinif_kosulu(sinif_ids)
+    soru = ",".join("?" * len(adaylar))
+    uygun = {r["id"] for r in db.q(f"""SELECT y.id FROM yerlestirmeler y JOIN ogrenciler o ON o.id = y.ogrenci_id
+                                       WHERE y.id IN ({soru}) {kosul}""", [*adaylar, *params])}
+    return [i for i in adaylar if i in uygun]
+
+
 # ------------------------------------------------------------------ liste dışı kalanlar
 
 @dataclass

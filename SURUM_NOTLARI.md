@@ -1,6 +1,6 @@
 # MesKoord Sürüm Notları
 
-## 1.5.0 (hazırlanıyor)
+## 1.5.0
 
 - **Ceza koruması — süreleri bilmeyen öğretmen için:** program açılınca ve yarım saatte bir yasal süreleri
   tarar. Süresi geçen ya da bugün/yarın dolan işler (işe giriş / işten ayrılış bildirgesi, MESEM çıraklık

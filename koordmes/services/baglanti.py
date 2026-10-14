@@ -25,7 +25,7 @@ class Sistem:
 
 
 SISTEMLER: list[Sistem] = [
-    Sistem("eokul", "e-Okul", "https://e-okul.meb.gov.tr/", ("e-okul.meb.gov.tr",),
+    Sistem("eokul", "e-Okul", "https://mebbis.meb.gov.tr/Default.aspx", ("mebbis.meb.gov.tr",),
            "MEBBİS hesabınızla giriş yapın. Öğrenci listelerini, İşletmelerde Mesleki Eğitim modülündeki "
            "öğrenci-işletme listesini ve devamsızlık raporlarını Excel olarak indirin."),
     Sistem("emesem", "e-Mesem", "https://e-mesem.meb.gov.tr/", ("e-mesem.meb.gov.tr",),

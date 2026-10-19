@@ -270,8 +270,8 @@ def main() -> int:
         (hedef / "surum.json").write_text(
             guncelleme.surum_json(surum, indir_adresi, sha256(kurulum), surum_notu(surum)), encoding="utf-8")
         adim("Güncelleme bilgisi (surum.json)")
-        print(f"   Yayımlayın: {kurulum.name} → {indir_adresi or '(adres verilmedi: --indirme-adresi)'}")
-        print(f"   ve surum.json → {guncelleme_adresi_oku() or '(GUNCELLEME_ADRESI boş)'}")
+        print(f"   Yayımlayın: {kurulum.name} -> {indir_adresi or '(adres verilmedi: --indirme-adresi)'}")
+        print(f"   ve surum.json -> {guncelleme_adresi_oku() or '(GUNCELLEME_ADRESI boş)'}")
         print("   surum.json kurulum dosyasından SONRA yüklenmeli; okullar ancak o zaman yeni sürümü görür.")
 
     adim("TAMAMLANDI")

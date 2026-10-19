@@ -1,5 +1,22 @@
 # MesKoord Sürüm Notları
 
+## 1.5.1
+
+- **Performans:** Ana Sayfa yasal süre taraması ve üstteki ceza koruması bandı artık arayüzü
+  kilitlemez (arka planda hesaplanır, sonuç 60 sn önbellekte paylaşılır). Otomatik yedek de arka
+  planda alınır. İlk koruma taraması açılıştan 60 sn sonraya alındı; SGK risk taramasında aynı
+  bekleyen bildirge listesi iki kez okunmaz; devamsızlık özeti yalnızca kaydı olan öğrencileri
+  tarar. Arka plan işlerinin sonucu artık ana iş parçacığına güvenle aktarılır (eski hâlinde
+  nadiren programın kilitlenmesine yol açabiliyordu). Zayıf okul bilgisayarlarında açılış ve Ana
+  Sayfa geçişleri belirgin hızlanır.
+- **Ders programı yerleştirme:** Tabloda **"Kurallar yerleşmeyince gevşet"** kutusu; otomatik
+  yerleştirmeden önce kilitli hücre varsa kilitleri açma sorulur (belgeden yükleme sonrası
+  yerleşememenin başlıca nedeni). **"Neden Yerleşmedi?"** arka planda hesaplanır. Yerleşmeme
+  denemesi en fazla 2 sn sürer (eskiden +10 sn CPU). Yeni kurulumlarda süre sınırı varsayılanı
+  40 sn. Ekrandaki ipucu önerilen sırayı gösterir.
+- **e-Okul Bağlantı:** Açılış adresi MEBBİS iken giriş sonrası `e-okul.meb.gov.tr` sayfaları yine
+  "Bağlı" sayılır (yalnızca MEBBİS alan adı bırakılınca listelerin yakalanması bozulmuştu).
+
 ## 1.5.0
 
 - **Ceza koruması — süreleri bilmeyen öğretmen için:** program açılınca ve yarım saatte bir yasal süreleri

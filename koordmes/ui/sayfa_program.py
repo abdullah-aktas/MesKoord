@@ -5,9 +5,10 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
-from PySide6.QtWidgets import (QAbstractItemView, QApplication, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
-                               QHeaderView, QInputDialog, QLabel, QListWidget, QMenu, QPushButton, QSplitter,
-                               QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
+                               QFileDialog, QHeaderView, QInputDialog, QLabel, QListWidget, QMenu, QPushButton,
+                               QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QVBoxLayout,
+                               QWidget)
 
 from ..mevzuat import GUNLER
 from ..services import aktarim, degisiklik, excel_io, okuyucu, program
@@ -124,6 +125,13 @@ class ProgramTablosu(QWidget):
             b = QPushButton(metin)
             b.clicked.connect(fn)
             ust.addWidget(b)
+        self.gevset = QCheckBox("Kurallar yerleşmeyince gevşet")
+        self.gevset.setToolTip("Açıkken 'aynı güne gelmesin' ve koordinatörlük günü kuralları gerektiği kadar "
+                               "gevşetilir; kapalıyken parametrelere kesin uyulur. Ayarlar'daki "
+                               "'program_kural_gevset' ile aynıdır.")
+        self.gevset.setChecked(bool(self.db.ayar("program_kural_gevset")))
+        self.gevset.toggled.connect(lambda v: self.db.ayar_yaz("program_kural_gevset", 1 if v else 0))
+        ust.addWidget(self.gevset)
         ust.addStretch()
         lay.addLayout(ust)
 
@@ -144,12 +152,12 @@ class ProgramTablosu(QWidget):
         self.durum = QLabel()
         self.durum.setWordWrap(True)
         sl.addWidget(self.durum)
-        ipucu = QLabel("Sağ tık: hücreyi kilitle/aç, sil veya boş hücreye ders ekle. Kilitli hücreler otomatik "
-                       "yerleştirmede korunur.\n\n"
-                       "e-Okul sınıf ve öğretmen programı PDF'lerini 'Belgeden Yükle' ile seçin ya da buraya "
-                       "sürükleyin. Sınıflar, öğretmenler, dersler ve mekanlar tanınır; saatler kilitli yerleşir. "
-                       "Dağıtım ilk sekmede, sınıf / öğretmen / mekan bu tabloda, nöbet ve özel durumlar "
-                       "(okul ve işletme günleri, ortak öğretmen, birleştirme) yan sekmelerdedir.")
+        ipucu = QLabel("Yeni program için önerilen sıra: 1) Ders dağılımını girin veya belgeden yükleyin "
+                       "2) 'Kilitleri Aç' (belgeden gelen kilitler yerleştirmenin önünü keser) "
+                       "3) 'Ön Denetim' 4) gerekirse 'Kurallar yerleşmeyince gevşet' 5) 'Otomatik Yerleştir'. "
+                       "Yerleşmeyenler için 'Neden Yerleşmedi?' nedeni ve öneriyi gösterir.\n\n"
+                       "Sağ tık: hücreyi kilitle/aç, sil veya boş hücreye ders ekle. Kilitli hücreler otomatik "
+                       "yerleştirmede korunur. e-Okul PDF'lerini 'Belgeden Yükle' ile seçin ya da sürükleyin.")
         ipucu.setWordWrap(True)
         ipucu.setStyleSheet("color:#666")
         sl.addWidget(ipucu)
@@ -411,18 +419,25 @@ class ProgramTablosu(QWidget):
         if not sormadan and not ortak.onay(
                 self, "Kilitli olmayan tüm ders yerleşimleri silinip yeniden oluşturulacak. Devam edilsin mi?"):
             return
+        kilitli = self.db.q1("SELECT COUNT(*) c FROM program_hucreleri WHERE kilitli = 1")["c"]
+        if not sormadan and kilitli and ortak.onay(
+                self, f"{kilitli} kilitli hücre var; otomatik yerleştirme bunları yerinde tutar ve çoğu zaman "
+                      "programı tamamlayamaz.\n\nBelgeden yüklediyseniz önce kilitleri açmanız gerekir. "
+                      "Şimdi tüm kilitler açılsın mı?"):
+            self.db.execute("UPDATE program_hucreleri SET kilitli = 0")
         kritik = [b for b in program.on_denetim(self.db) if b.seviye == "Kritik"]
         if kritik and not ortak.onay(self, "Ön denetimde yerleşmeyi engelleyebilecek sorunlar var:\n"
                                            + "\n".join(f"- {b.konu}: {b.mesaj}" for b in kritik[:15])
                                            + "\n\nYine de yerleştirilsin mi?"):
             return
+        gevset = self.gevset.isChecked()
         self.setEnabled(False)
         self.durum.setText("Yerleştiriliyor, lütfen bekleyiniz...")
 
         def is_():
             d = self.db.kopya()
             try:
-                s = program.programi_olustur(d)
+                s = program.programi_olustur(d, gevset=gevset)
                 return len(s.hucreler), s.nedenler, s.sure, list(s.notlar)
             finally:
                 d.close()
@@ -449,18 +464,33 @@ class ProgramTablosu(QWidget):
         ortak.arka_planda(is_, bitti, hata_)
 
     def nedenler(self):
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        try:
-            nedenler = program.yerlesmeme_nedenleri(self.db)
-        finally:
-            QApplication.restoreOverrideCursor()
-        if not nedenler:
-            ortak.bilgi(self, "Bütün ders saatleri programda; yerleşmeyen ders yok.", "Neden Yerleşmedi?")
-            return
-        self.son_pencere = YerlesmeyenPenceresi(
-            nedenler, f"Programda eksik {len(nedenler)} blok var. Engeller bugünkü programa (kilitli ve kilitsiz "
-                      "bütün hücreler yerinde kalarak) göre hesaplandı.", parent=self)
-        self.son_pencere.open()
+        self.setEnabled(False)
+        self.durum.setText("Yerleşmeme nedenleri hesaplanıyor...")
+
+        def is_():
+            d = self.db.kopya()
+            try:
+                return program.yerlesmeme_nedenleri(d)
+            finally:
+                d.close()
+
+        def bitti(nedenler):
+            self.setEnabled(True)
+            self.durum.setText("")
+            if not nedenler:
+                ortak.bilgi(self, "Bütün ders saatleri programda; yerleşmeyen ders yok.", "Neden Yerleşmedi?")
+                return
+            self.son_pencere = YerlesmeyenPenceresi(
+                nedenler, f"Programda eksik {len(nedenler)} blok var. Engeller bugünkü programa (kilitli ve kilitsiz "
+                          "bütün hücreler yerinde kalarak) göre hesaplandı.", parent=self)
+            self.son_pencere.open()
+
+        def hata_(e):
+            self.setEnabled(True)
+            self.durum.setText("")
+            ortak.hata(self, e)
+
+        ortak.arka_planda(is_, bitti, hata_)
 
     def temizle(self):
         if ortak.onay(self, "Kilitli olmayan tüm program hücreleri silinsin mi?"):

@@ -130,17 +130,27 @@ def app():
 
 
 def test_ui_koruma_bandi_ve_ana_sayfa(app, okul):
+    from PySide6.QtTest import QTest
     from koordmes.ui.ana_pencere import AnaPencere
     db, _ = okul
     w = AnaPencere(db)
     w.show()
     w.koruma_denetle()
+    for _ in range(80):
+        app.processEvents()
+        if w.koruma_bandi.kritikler:
+            break
+        QTest.qWait(50)
     assert w.koruma_bandi.isVisible() and w.koruma_bandi.kritikler
     assert "Ceza riski" in w.koruma_bandi.etiket.text()
     w.koruma_bandi.goster.click()
     assert w.gecerli_sayfa() is w.sayfa[w.koruma_bandi.kritikler[0].git or "Ana Sayfa"]
     ana = w.git("Ana Sayfa")
-    app.processEvents()
+    for _ in range(80):
+        app.processEvents()
+        if any(g == takvim.SGK_EKRANI for g in ana.model.kimlikler):
+            break
+        QTest.qWait(50)
     r = next(i for i, g in enumerate(ana.model.kimlikler) if g == takvim.SGK_EKRANI)
     ana._git(ana.proxy.mapFromSource(ana.model.index(r, 0)))
     assert w.gecerli_sayfa() is w.sayfa[takvim.SGK_EKRANI]

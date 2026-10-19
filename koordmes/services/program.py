@@ -937,8 +937,10 @@ def cozucu_kur(girdi: dict, kilitli: list, seed: int | None = None, koord_bos: b
 
 
 def programi_olustur(db, sure_limit: float | None = None, seed: int | None = None,
-                     kilitlileri_koru: bool = True) -> CozumSonucu:
+                     kilitlileri_koru: bool = True, gevset: bool | None = None) -> CozumSonucu:
+    """gevset None ise program_kural_gevset ayarı kullanılır; True/False bu çalıştırmayı geçici ezer."""
     sure_limit = sure_limit if sure_limit is not None else db.ayar("program_sure_limit_sn")
+    gevset = bool(db.ayar("program_kural_gevset")) if gevset is None else gevset
     girdi = cozucu_girdisi(db)
     kilitli = []
     if kilitlileri_koru:
@@ -950,7 +952,7 @@ def programi_olustur(db, sure_limit: float | None = None, seed: int | None = Non
 
     kurallar, koord = bool(girdi["kurallar"]), bool(girdi["koord"])
     sonuc = coz(True, True)
-    if sonuc.yerlesmeyen and (kurallar or koord) and db.ayar("program_kural_gevset"):
+    if sonuc.yerlesmeyen and (kurallar or koord) and gevset:
         if kurallar:
             gevsek = coz(True, False)
             if len(gevsek.yerlesmeyen) < len(sonuc.yerlesmeyen):
@@ -966,13 +968,15 @@ def programi_olustur(db, sure_limit: float | None = None, seed: int | None = Non
                                                 "öğretmenleri listeler)."]
                 sonuc = ikinci
     elif sonuc.yerlesmeyen and (kurallar or koord):
-        deneme = coz(False, False, min(sure_limit, 10))
+        # Kısa deneme (en fazla 2 sn): uzun ikinci çözüm zayıf bilgisayarları yorar
+        deneme = coz(False, False, min(sure_limit, 2))
         fark = len(sonuc.yerlesmeyen) - len(deneme.yerlesmeyen)
         neler = " ve ".join(x for x, var in (("'aynı güne gelmesin' kuralları", kurallar),
                                              ("koordinatörlük günlerinin boş bırakılması", koord)) if var)
         if fark > 0:
             sonuc.notlar.append(f"Parametrelere kesin uyuldu, hiçbir kural gevşetilmedi. {neler} gevşetilseydi "
-                                f"{fark} blok daha yerleşebilirdi. Buna izin vermek isterseniz "
+                                f"{fark} blok daha yerleşebilirdi. Buna izin vermek isterseniz tablonun üstündeki "
+                                f"'Kurallar yerleşmeyince gevşet' kutusunu işaretleyin veya "
                                 f"{ayar_adi('program_kural_gevset')} parametresini açın; ya da aşağıdaki "
                                 "nedenleri giderin.")
         else:

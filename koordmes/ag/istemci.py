@@ -400,8 +400,15 @@ class UzakDatabase(Database):
         if self.conn.in_transaction:
             cur = self.conn.execute(sql, tuple(params))
             self.conn.commit()
-            return cur.lastrowid
-        return self.conn.calistir_ve_kaydet(sql, tuple(params)).lastrowid
+            son = cur.lastrowid
+        else:
+            son = self.conn.calistir_ve_kaydet(sql, tuple(params)).lastrowid
+        try:
+            from ..services.takvim import uyarilar_onbellegi_temizle
+            uyarilar_onbellegi_temizle()
+        except Exception:
+            pass
+        return son
 
     def yedekle(self, hedef: Path | None = None) -> Path:
         """Hedef verilmezse sunucuda otomatik yedek alınır, bir kopyası bu bilgisayarın yedek klasörüne iner."""

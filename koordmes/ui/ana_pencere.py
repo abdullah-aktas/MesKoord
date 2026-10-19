@@ -40,7 +40,8 @@ from .yan_menu import YanMenu
 
 STIL = marka.stil()
 DAR_EKRAN = 1280  # bu genişliğin altındaki ekranlarda menü ilk açılışta simge şeridi olarak gelir
-KORUMA_ARALIGI = 30 * 60 * 1000  # yasal süre taraması (ms); ilki açılıştan 5 sn sonra
+KORUMA_ARALIGI = 30 * 60 * 1000  # yasal süre taraması (ms)
+KORUMA_ILK_GECIKME = 60 * 1000   # açılışta Ana Sayfa / splash ile çakışmasın
 # Canlı yenilemede dokunulmayan sayfalar (kullanıcının kaydetmediği girişleri silinmesin)
 CANLI_YENILEME_DISI = (MevzuatParametreleri, TopluGirisSayfasi, AktarimSayfasi, BaglantiSayfasi, EsitlemeSayfasi)
 
@@ -221,9 +222,11 @@ class AnaPencere(QMainWindow):
 
         self._bildirilen_kritikler: set[str] = set()
         self._bildirim_simgesi = None
+        self._koruma_calisiyor = False
+        self._yedek_calisiyor = False
         self._koruma_zamanlayici = QTimer(self)
         self._koruma_zamanlayici.timeout.connect(self.koruma_denetle)
-        self._koruma_zamanlayici.start(5 * 1000)
+        self._koruma_zamanlayici.start(KORUMA_ILK_GECIKME)
 
     # --- düzen ---
     def _menuler(self) -> None:
@@ -541,25 +544,56 @@ class AnaPencere(QMainWindow):
 
     def _otomatik_yedek(self) -> None:
         from .. import yedekleme
-        if self.db.uzak or not yedekleme.YedekAyarlari.yukle().zamani_geldi():
+        if self.db.uzak or self._yedek_calisiyor or not yedekleme.YedekAyarlari.yukle().zamani_geldi():
             return
-        try:
-            yol = self.db.yedekle()
-        except Exception as e:  # noqa: BLE001
+        self._yedek_calisiyor = True
+        db = self.db
+
+        def is_():
+            d = db.kopya()
+            try:
+                return d.yedekle()
+            finally:
+                d.close()
+
+        def bitti(yol):
+            self._yedek_calisiyor = False
+            hata = yedekleme.YedekAyarlari.yukle().son_hata
+            self.statusBar().showMessage(hata or f"Otomatik yedek alındı: {yol.name}", 15000 if hata else 6000)
+
+        def hata_(e):
+            self._yedek_calisiyor = False
             self.statusBar().showMessage(f"Otomatik yedek alınamadı: {e}", 15000)
-            return
-        hata = yedekleme.YedekAyarlari.yukle().son_hata
-        self.statusBar().showMessage(hata or f"Otomatik yedek alındı: {yol.name}", 15000 if hata else 6000)
+
+        ortak.arka_planda(is_, bitti, hata_)
 
     def koruma_denetle(self) -> None:
         """Süresi geçen / bugün-yarın dolan işler: üst bant ve (yeni olanlar için) Windows bildirimi."""
         if self._koruma_zamanlayici.interval() != KORUMA_ARALIGI:
             self._koruma_zamanlayici.start(KORUMA_ARALIGI)
-        try:
-            liste = koruma.kritikler(self.db)
-        except Exception as e:  # noqa: BLE001
-            self.statusBar().showMessage(f"Süre denetimi yapılamadı: {e}", 10000)
+        if self._koruma_calisiyor:
             return
+        self._koruma_calisiyor = True
+        db = self.db
+
+        def is_():
+            d = db.kopya()
+            try:
+                return koruma.kritikler(d)
+            finally:
+                d.close()
+
+        def bitti(liste):
+            self._koruma_calisiyor = False
+            self._koruma_sonucu(liste)
+
+        def hata_(e):
+            self._koruma_calisiyor = False
+            self.statusBar().showMessage(f"Süre denetimi yapılamadı: {e}", 10000)
+
+        ortak.arka_planda(is_, bitti, hata_)
+
+    def _koruma_sonucu(self, liste) -> None:
         self.koruma_bandi.ayarla(liste)
         yeni = [k for k in liste if k.anahtar not in self._bildirilen_kritikler]
         self._bildirilen_kritikler |= {k.anahtar for k in yeni}

@@ -93,7 +93,8 @@ def aphb_son_gunu(db, yil: int, ay: int) -> date:
     return date(y, a, min(int(db.ayar("muhsgk_son_gun")), son.day))
 
 
-def analiz(db, bugun: date | None = None) -> list[Risk]:
+def analiz(db, bugun: date | None = None, bekleyen=None) -> list[Risk]:
+    """bekleyen verilirse bekleyen_bildirimler yeniden taranmaz (Ana Sayfa / koruma çift tarama önlenir)."""
     bugun = bugun or date.today()
     au = db.ayar("asgari_ucret_brut")
     indirim = db.ayar("sgk_ipc_indirim")
@@ -104,7 +105,9 @@ def analiz(db, bugun: date | None = None) -> list[Risk]:
     out: list[Risk] = []
 
     # --- işe giriş / işten ayrılış bildirgeleri ---
-    for b in sigorta.bekleyen_bildirimler(db, bugun, ileri_gun=YAKIN_GUN):
+    if bekleyen is None:
+        bekleyen = sigorta.bekleyen_bildirimler(db, bugun, ileri_gun=YAKIN_GUN)
+    for b in bekleyen:
         giris = b.tur == "Giriş"
         ceza = ceza_giris if giris else ceza_cikis
         ad = "İşe giriş bildirgesi" if giris else "İşten ayrılış bildirgesi"

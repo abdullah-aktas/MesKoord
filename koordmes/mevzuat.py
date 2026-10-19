@@ -172,7 +172,7 @@ PARAMETRELER: list[Parametre] = [
 
     # --- Ders programı ---
     Parametre("gunluk_ders_saati", "Günlük ders saati sayısı", "8", "int", "Ders Programı", "Okul çizelgesi"),
-    Parametre("program_sure_limit_sn", "Otomatik yerleştirme süre sınırı (saniye)", "20", "int",
+    Parametre("program_sure_limit_sn", "Otomatik yerleştirme süre sınırı (saniye)", "40", "int",
               "Ders Programı", ""),
     Parametre("program_koord_gunu_bos", "Koordinatörlük görev günlerini okulda derse kapat", "1", "bool",
               "Ders Programı", "Ders ve Ek Ders Saatlerine İlişkin Karar md.15 (işletmede geçen gün)"),

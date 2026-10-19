@@ -813,8 +813,10 @@ seviye, alan ve dallarına göre zorunlu dersler açılır. Ardından yalnızca 
    bloğun sığabileceği hiç gün yok (Kritik) ya da blok sayısından az gün var, dersin öğretmeni atanmamış,
    MEM sınıfının okul günü 1-2 değil.
 4. **"Otomatik Yerleştir"** kilitli olmayan bütün dersleri silip yeniden yerleştirir (onay ister; ön
-   denetimde kritik sorun varsa önce onları gösterir). **Parametrelere kesin uyulur; hiçbir kural kendiliğinden
-   gevşetilmez.** Kesin kurallar:
+   denetimde kritik sorun varsa önce onları gösterir). Belgeden yükleme sonrası kilitli hücre varsa önce
+   kilitleri açmanız sorulur — açık bırakılan kilitler çoğu zaman programın tamamlanmasını engeller.
+   Tablodaki **"Kurallar yerleşmeyince gevşet"** kutusu kapalıysa parametrelere kesin uyulur; açıkken
+   yalnızca "aynı güne gelmesin" ve koordinatörlük günü kuralları gerektiği kadar gevşetilir. Kesin kurallar:
    - Öğretmen müsaitliği (öncelikli tercihler dâhil), sınıfın okul günleri ve ders konmayacak saatleri, okul
      geneli ders konmayacak saatler, sabahçı/öğlenci şube yarısı, blok uzunlukları ve blok desenleri.
    - İki öğretmenli (grup) dersler, birleştirilmiş dersler, atölye kapasitesi.
@@ -834,8 +836,8 @@ seviye, alan ve dallarına göre zorunlu dersler açılır. Ardından yalnızca 
    arasında bölünüyor", "Öğretmen o saatte başka derste", "Uygun atölye/laboratuvar boş değil") ve
    **"Ne yapmalı?"** önerileri (hangi ekranda hangi ayarın değişeceği) gösterilir;
    Excel'e aktarılabilir. Ayrıca "kurallar gevşetilseydi N blok daha yerleşebilirdi" bilgisi verilir; bu yalnızca
-   bilgidir, program kendiliğinden gevşetmez. Gevşetmeyi bilerek istiyorsanız Ayarlar'da "Kurallara uyularak
-   yerleşmeyen ders kalırsa ... kuralları gevşetilsin" seçeneğini açın.
+   bilgidir (kısa deneme). Gevşetmeyi bilerek istiyorsanız tablodaki kutuyu işaretleyin veya Ayarlar'da aynı
+   seçeneği açın.
 
    **"Neden Yerleşmedi?"** düğmesi aynı pencereyi mevcut program için (elle yaptığınız yerleşimler yerinde
    kalarak) istediğiniz an açar.

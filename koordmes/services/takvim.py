@@ -1,12 +1,17 @@
 """Yasal süre hatırlatmaları ve veri tutarlılık uyarıları (Ana sayfa)."""
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from datetime import date, timedelta
 
 from . import devam, sgk_risk, sigorta
 from .utils import ay_araligi, ilerideki_is_gunu, para, tatil_gunleri, tc_gecerli, tr
 from ..mevzuat import AYLAR
+
+# Ana Sayfa ve koruma bandı aynı taramayı birkaç saniye içinde tekrarlamasın
+_UYARI_ONBELLEK: dict = {"anahtar": None, "zaman": 0.0, "sonuc": None}
+_UYARI_ONBELLEK_SN = 60.0
 
 
 SGK_EKRANI = "SGK Sigorta İşlemleri"
@@ -81,8 +86,36 @@ def _yonetmelik_sureleri(db, bugun: date, out: list[Uyari]) -> None:
                              "Yerleştirme ve Sözleşmeler"))
 
 
-def uyarilar(db, bugun: date | None = None) -> list[Uyari]:
+def uyarilar_onbellegi_temizle() -> None:
+    _UYARI_ONBELLEK.update(anahtar=None, zaman=0.0, sonuc=None)
+
+
+def _uyari_anahtar(db, bugun: date) -> tuple:
+    return (str(getattr(db, "path", "") or getattr(db, "konum", "")), bugun.isoformat())
+
+
+def uyarilar_onbellekten(db, bugun: date | None = None) -> list[Uyari] | None:
+    """Taze önbellek varsa kopyasını döndürür; yoksa None (arayüz bloke etmeden kontrol)."""
     bugun = bugun or date.today()
+    if (_UYARI_ONBELLEK["anahtar"] == _uyari_anahtar(db, bugun)
+            and time.monotonic() - _UYARI_ONBELLEK["zaman"] < _UYARI_ONBELLEK_SN
+            and _UYARI_ONBELLEK["sonuc"] is not None):
+        return list(_UYARI_ONBELLEK["sonuc"])
+    return None
+
+
+def uyarilar(db, bugun: date | None = None, *, zorla: bool = False) -> list[Uyari]:
+    bugun = bugun or date.today()
+    if not zorla:
+        hazir = uyarilar_onbellekten(db, bugun)
+        if hazir is not None:
+            return hazir
+    out = _uyarilar_hesapla(db, bugun)
+    _UYARI_ONBELLEK.update(anahtar=_uyari_anahtar(db, bugun), zaman=time.monotonic(), sonuc=out)
+    return list(out)
+
+
+def _uyarilar_hesapla(db, bugun: date) -> list[Uyari]:
     out: list[Uyari] = []
     ilk, son = ay_araligi(bugun.year, bugun.month)
     tatiller = tatil_gunleri(db, ilk, son + timedelta(days=10))
@@ -106,7 +139,8 @@ def uyarilar(db, bugun: date | None = None) -> list[Uyari]:
     sureli("Devlet Katkısı", db.ayar("dk_sisteme_giris_son_gun"),
            f"{onceki} dönemi devlet katkısı bilgileri e-Okul / e-Mesem'e girilmeli.", "Öğrenci Ücreti ve Devlet Katkısı")
 
-    for b in sigorta.bekleyen_bildirimler(db, bugun):
+    bekleyen = sigorta.bekleyen_bildirimler(db, bugun)
+    for b in bekleyen:
         kalan = (b.son_tarih - bugun).days
         if b.gecikti:
             seviye = "Kritik"
@@ -124,7 +158,10 @@ def uyarilar(db, bugun: date | None = None) -> list[Uyari]:
         out.append(Uyari(seviye, "SGK", f"{b.ogrenci} ({b.sinif}) {islem} bildirgesi - {durum}", b.son_tarih,
                          SGK_EKRANI))
 
-    for r in sgk_risk.analiz(db, bugun):
+    # Aynı listeden risk penceresi (ileri_gun=YAKIN_GUN ile aynı küme; ikinci SQL yok)
+    sinir = bugun + timedelta(days=sgk_risk.YAKIN_GUN)
+    risk_bekleyen = [b for b in bekleyen if b.olay_tarihi <= sinir]
+    for r in sgk_risk.analiz(db, bugun, bekleyen=risk_bekleyen):
         if r.seviye == "Bilgi" or r.eylem.startswith("bildirildi:") or "son günü yaklaşıyor" in r.konu \
                 or r.konu.startswith("T.C. kimlik no"):
             continue

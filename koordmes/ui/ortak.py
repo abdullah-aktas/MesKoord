@@ -261,25 +261,47 @@ class _Isci(QObject):
             self.hata.emit(traceback.format_exc())
 
 
+class _ArkaKopru(QObject):
+    """Ana iş parçacığında yaşar; işçi sinyallerini güvenle UI'ye aktarır."""
+
+    def __init__(self, th: QThread, bitince: Callable[[Any], None], hata: Callable[[str], None], kayit: list):
+        super().__init__()
+        self._th = th
+        self._bitince = bitince
+        self._hata = hata
+        self._kayit = kayit
+
+    def bitti(self, r) -> None:
+        self._th.quit()
+        self._th.wait(120_000)
+        if self._kayit in _aktif_isler:
+            _aktif_isler.remove(self._kayit)
+        self._bitince(r)
+
+    def hata(self, e: str) -> None:
+        self._th.quit()
+        self._th.wait(120_000)
+        if self._kayit in _aktif_isler:
+            _aktif_isler.remove(self._kayit)
+        self._hata(e)
+
+
 _aktif_isler: list = []
 
 
 def arka_planda(fn: Callable[[], Any], bitince: Callable[[Any], None], hata: Callable[[str], None]) -> None:
-    """fn'i ayrı iş parçacığında çalıştırır. fn kendi DB bağlantısını açmalıdır."""
+    """fn'i ayrı iş parçacığında çalıştırır. fn kendi DB bağlantısını açmalıdır.
+    Sonuç ana iş parçacığına kuyruklanır; bitince/hata orada çağrılır (UI ve DB güvenli)."""
     th = QThread()
     isci = _Isci(fn)
+    kayit: list = []
+    kopru = _ArkaKopru(th, bitince, hata, kayit)
+    kayit.extend((th, isci, kopru))
     isci.moveToThread(th)
     th.started.connect(isci.calistir)
-
-    def temizle():
-        th.quit()
-        th.wait()
-        if (th, isci) in _aktif_isler:
-            _aktif_isler.remove((th, isci))
-
-    isci.bitti.connect(lambda r: (temizle(), bitince(r)))
-    isci.hata.connect(lambda e: (temizle(), hata(e)))
-    _aktif_isler.append((th, isci))
+    isci.bitti.connect(kopru.bitti, Qt.QueuedConnection)
+    isci.hata.connect(kopru.hata, Qt.QueuedConnection)
+    _aktif_isler.append(kayit)
     th.start()
 
 

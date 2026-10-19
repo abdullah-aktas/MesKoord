@@ -61,14 +61,18 @@ def uzak_db(sunucu):
 
 @pytest.fixture
 def db(tmp_path, request):
+    from koordmes.services import takvim
+    takvim.uyarilar_onbellegi_temizle()
     if "1" in (os.environ.get("MESKOORD_TEST_UZAK"), os.environ.get("KOORDMES_TEST_UZAK")):
         yield request.getfixturevalue("uzak_db")
+        takvim.uyarilar_onbellegi_temizle()
         return
     os.environ["MESKOORD_DATA"] = str(tmp_path / "data")
     from koordmes.db import Database
     d = Database(tmp_path / "test.db")
     yield d
     d.close()
+    takvim.uyarilar_onbellegi_temizle()
 
 
 @pytest.fixture

@@ -36,7 +36,7 @@ class AnaSayfa(QWidget):
         ust.addWidget(self.baslik)
         ust.addStretch()
         b = QPushButton("Yenile")
-        b.clicked.connect(self.yenile)
+        b.clicked.connect(self._yenile_tik)
         ust.addWidget(b)
         lay.addLayout(ust)
 
@@ -74,6 +74,10 @@ class AnaSayfa(QWidget):
         super().showEvent(e)
         self.yenile()
 
+    def _yenile_tik(self) -> None:
+        self._yenile_zorla = True
+        self.yenile()
+
     def yenile(self):
         k = self.db.kurum()
         self.baslik.setText(f"{k['ad'] or 'Kurum adı girilmemiş'}  —  {k['egitim_yili'] or ''} Eğitim-Öğretim Yılı")
@@ -91,9 +95,40 @@ class AnaSayfa(QWidget):
             "SELECT COUNT(DISTINCT isletme_id) c FROM yerlestirmeler WHERE durum = 'Aktif' AND isletme_id IS NOT NULL")))
         self.kartlar["ogretmen"].deger.setText(str(q("SELECT COUNT(*) c FROM ogretmenler WHERE aktif = 1")))
         self.kartlar["koord"].deger.setText(str(q("SELECT COUNT(DISTINCT ogretmen_id) c FROM koordinator_gorevleri")))
-        uyarilar = takvim.uyarilar(self.db)
+        zorla = getattr(self, "_yenile_zorla", False)
+        self._yenile_zorla = False
+        hazir = None if zorla else takvim.uyarilar_onbellekten(self.db)
+        if hazir is not None:
+            self._uyarilari_yaz(hazir)
+            return
+        # Ağır tarama arka planda; arayüz kilitlenmez
+        self._uyari_no = getattr(self, "_uyari_no", 0) + 1
+        no = self._uyari_no
+        db = self.db
+
+        def is_():
+            d = db.kopya()
+            try:
+                return takvim.uyarilar(d, zorla=zorla)
+            finally:
+                d.close()
+
+        def bitti(uyarilar):
+            if no != self._uyari_no:
+                return
+            self._uyarilari_yaz(uyarilar)
+
+        def hata_(e):
+            if no != self._uyari_no:
+                return
+            self.model.ayarla([["Uyarı", "Sistem", f"Uyarılar yüklenemedi: {e}", ""]], [""], {0: RENKLER["Uyarı"]})
+
+        ortak.arka_planda(is_, bitti, hata_)
+
+    def _uyarilari_yaz(self, uyarilar) -> None:
         self.kartlar["sgk"].deger.setText(str(sum(1 for u in uyarilar if u.konu == "SGK" and "bildirgesi" in u.mesaj)))
-        self.model.ayarla([[u.seviye, u.konu, u.mesaj, tr(u.tarih)] for u in uyarilar], [u.git for u in uyarilar],
+        self.model.ayarla([[u.seviye, u.konu, u.mesaj, tr(u.tarih)] for u in uyarilar],
+                          [u.git for u in uyarilar],
                           {i: RENKLER[u.seviye] for i, u in enumerate(uyarilar)})
         self.view.setColumnWidth(0, 70)
         self.view.setColumnWidth(1, 120)

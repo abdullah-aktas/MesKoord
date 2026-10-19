@@ -433,7 +433,16 @@ class Database:
     def execute(self, sql: str, params: Iterable[Any] = ()) -> int:
         cur = self.conn.execute(sql, tuple(params))
         self.conn.commit()
+        self._uyari_onbellegi_temizle()
         return cur.lastrowid
+
+    def _uyari_onbellegi_temizle(self) -> None:
+        """Veri değişince Ana Sayfa / koruma uyarı önbelleği geçersiz olsun."""
+        try:
+            from .services.takvim import uyarilar_onbellegi_temizle
+            uyarilar_onbellegi_temizle()
+        except Exception:
+            pass
 
     def insert(self, table: str, values: dict[str, Any]) -> int:
         cols = ", ".join(values)
